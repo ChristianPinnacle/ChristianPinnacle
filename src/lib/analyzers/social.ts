@@ -43,9 +43,9 @@ export function analyzeSocial(input: string): AnalysisReport {
       id: "overview",
       title: "Post Overview",
       category: "overview",
-      summary: `${platformLabel(platform)} post analysis — ${overallScore}/100 overall engagement readiness.`,
+      summary: `${platformLabel(platform)} post for ${parsed.hashtags.length > 0 ? parsed.hashtags.map((h) => `#${h}`).join(" ") : "general audience"} — ${overallScore}/100 engagement readiness.`,
       details: [
-        `Platform: ${platformLabel(platform)}${platform === "unknown" ? " (detected from content patterns)" : ""}`,
+        `Opening line: "${text.split(/[\n.!?]/)[0]?.trim().slice(0, 120) || text.slice(0, 120)}"`,
         `Length: ${charCount} characters, ${wordCount} words`,
         `Optimal range for ${platformLabel(platform)}: ${limits.minChars}–${limits.maxChars} characters`,
         `Sentiment: ${sentiment.label} (${sentiment.score > 0 ? "+" : ""}${sentiment.score} polarity)`,
@@ -129,7 +129,10 @@ export function analyzeSocial(input: string): AnalysisReport {
     actionItems,
   };
 
-  const audit = runMarketingAudit(text, "social_post");
+  const audit = runMarketingAudit(text, "social_post", {
+    platform: platformLabel(platform),
+    title: text.split(/[\n.!?]/)[0]?.trim(),
+  });
   return enrichReportWithAudit(baseReport, audit);
 }
 

@@ -136,7 +136,11 @@ export async function analyzeApp(input: string): Promise<AnalysisReport> {
     actionItems,
   };
 
-  const audit = runMarketingAudit(auditText, "app_listing");
+  const audit = runMarketingAudit(auditText, "app_listing", {
+    url: appInfo.url,
+    title: appInfo.name,
+    description: appInfo.description,
+  });
   return enrichReportWithAudit(baseReport, audit);
 }
 

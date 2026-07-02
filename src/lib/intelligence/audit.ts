@@ -1,12 +1,20 @@
 import type { AnalysisReport, AnalysisSection, ScoreMetric } from "@/lib/types";
-import { clamp } from "@/lib/utils";
 import {
   type AuditContext,
-  type AuditCriterion,
-  BENCHMARK_SOURCES,
   GENERIC_OFFER_PHRASES,
   getCriteriaForContext,
 } from "@/lib/intelligence/criteria";
+import {
+  buildContentProfile,
+  type ContentProfile,
+} from "@/lib/intelligence/content-profile";
+import {
+  buildContextualActionItems,
+  buildContextualGaps,
+  buildContextualSummary,
+  buildFailedFixes,
+  buildPassedInsights,
+} from "@/lib/intelligence/contextual-recommendations";
 
 export interface AuditCheckResult {
   id: string;
@@ -18,22 +26,36 @@ export interface AuditCheckResult {
   weight: number;
 }
 
+export interface AuditOptions {
+  url?: string;
+  title?: string;
+  description?: string;
+  headings?: string[];
+  ctas?: string[];
+  platform?: string;
+}
+
 export interface MarketingAuditResult {
   context: AuditContext;
+  profile: ContentProfile;
   overallScore: number;
   checks: AuditCheckResult[];
   passedCount: number;
   totalCount: number;
   criticalGaps: string[];
-  vitalEdgeGaps: string[];
   scores: ScoreMetric[];
   section: AnalysisSection;
   actionItems: { priority: "high" | "medium" | "low"; action: string }[];
 }
 
-export function runMarketingAudit(text: string, context: AuditContext): MarketingAuditResult {
+export function runMarketingAudit(
+  text: string,
+  context: AuditContext,
+  options?: AuditOptions
+): MarketingAuditResult {
   const criteria = getCriteriaForContext(context);
   const normalized = text.trim();
+  const profile = buildContentProfile({ text: normalized, ...options });
 
   const checks: AuditCheckResult[] = criteria.map((c) => {
     const passed = c.test(normalized);
@@ -53,33 +75,22 @@ export function runMarketingAudit(text: string, context: AuditContext): Marketin
   const overallScore = totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0;
 
   const failed = checks.filter((c) => !c.passed);
-  const passedCount = checks.length - failed.length;
+  const passedChecks = checks.filter((c) => c.passed);
+  const passedCount = passedChecks.length;
 
-  const criticalGaps = identifyCriticalGaps(normalized, failed);
-  const vitalEdgeGaps = identifyVitalEdgeGaps(normalized, context, failed);
-
+  const criticalGaps = buildContextualGaps(profile, failed, normalized);
   const categoryScores = computeCategoryScores(checks);
-
-  const section = buildAuditSection(
-    context,
-    overallScore,
-    checks,
-    criticalGaps,
-    vitalEdgeGaps,
-    passedCount,
-    checks.length
-  );
-
-  const actionItems = buildAuditActionItems(failed, vitalEdgeGaps, context);
+  const section = buildAuditSection(profile, context, overallScore, passedChecks, failed, criticalGaps, passedCount, checks.length);
+  const actionItems = buildContextualActionItems(profile, failed, normalized, context);
 
   return {
     context,
+    profile,
     overallScore,
     checks,
     passedCount,
     totalCount: checks.length,
     criticalGaps,
-    vitalEdgeGaps,
     scores: categoryScores,
     section,
     actionItems,
@@ -88,9 +99,9 @@ export function runMarketingAudit(text: string, context: AuditContext): Marketin
 
 function computeCategoryScores(checks: AuditCheckResult[]): ScoreMetric[] {
   const groups: Record<string, { earned: number; total: number; label: string }> = {
-    offer: { earned: 0, total: 0, label: "Grand Slam Offer" },
-    value: { earned: 0, total: 0, label: "Value Equation" },
-    conversion: { earned: 0, total: 0, label: "Conversion Architecture" },
+    offer: { earned: 0, total: 0, label: "Offer Clarity" },
+    value: { earned: 0, total: 0, label: "Proof & Trust" },
+    conversion: { earned: 0, total: 0, label: "Conversion Path" },
     hooks: { earned: 0, total: 0, label: "Hooks & Copy" },
   };
 
@@ -99,6 +110,7 @@ function computeCategoryScores(checks: AuditCheckResult[]): ScoreMetric[] {
     target_avatar: "offer",
     risk_reversal: "offer",
     value_stack: "offer",
+    coach_platform_pain: "offer",
     proof_likelihood: "value",
     time_delay: "value",
     effort_reduction: "value",
@@ -110,14 +122,13 @@ function computeCategoryScores(checks: AuditCheckResult[]): ScoreMetric[] {
     cta_repeated: "conversion",
     objection_handling: "conversion",
     urgency_real: "conversion",
+    free_to_workshop_ladder: "conversion",
     hook_strength: "hooks",
     problem_hook: "hooks",
     credibility_signal: "hooks",
     specificity: "hooks",
     hero_outcome: "hooks",
     engagement_question: "hooks",
-    coach_platform_pain: "offer",
-    free_to_workshop_ladder: "conversion",
   };
 
   for (const check of checks) {
@@ -131,215 +142,70 @@ function computeCategoryScores(checks: AuditCheckResult[]): ScoreMetric[] {
     .map((g) => ({
       label: g.label,
       score: Math.round((g.earned / g.total) * 100),
-      description: `Benchmark score vs ${g.label} frameworks`,
+      description: `${g.label} for this specific content`,
     }));
 }
 
-function identifyCriticalGaps(text: string, failed: AuditCheckResult[]): string[] {
-  const gaps: string[] = [];
-
-  if (GENERIC_OFFER_PHRASES.some((p) => p.test(text))) {
-    gaps.push(
-      "Offer clarity: 'Online coaching' / 'transform your body' is NOT a Grand Slam Offer — needs specific outcome + avatar + timeline (Hormozi)"
-    );
-  }
-
-  const priorityIds = [
-    "specific_outcome",
-    "risk_reversal",
-    "dm_funnel_cta",
-    "hook_strength",
-    "problem_hook",
-    "application_qualify",
-    "proof_volume",
-  ];
-
-  for (const check of failed) {
-    if (priorityIds.includes(check.id)) {
-      gaps.push(`${check.label}: ${check.message}`);
-    }
-  }
-
-  return [...new Set(gaps)].slice(0, 6);
-}
-
-function identifyVitalEdgeGaps(
-  text: string,
-  context: AuditContext,
-  failed: AuditCheckResult[]
-): string[] {
-  const gaps: string[] = [];
-  const isCoachB2B = /\b(coach|trainer|platform|SaaS|VitalEdge|Skool|client management)\b/i.test(text);
-  const isConsumerB2C = /\b(physique|weight|nutrition|workout|transformation|personal training client)\b/i.test(text);
-
-  if (isCoachB2B || context === "landing_page") {
-    if (!/\b(google sheets|losing clients|platform|spreadsheet|check.?in)\b/i.test(text)) {
-      gaps.push(
-        "VitalEdge B2B: Missing coach-specific pain — e.g. 'Stop losing clients because your platform looks like Google Sheets'"
-      );
-    }
-    if (failed.some((c) => c.id === "free_to_workshop_ladder")) {
-      gaps.push(
-        "VitalEdge B2B: No free course → workshop funnel (Hormozi template for converting cold coaches)"
-      );
-    }
-    if (failed.some((c) => c.id === "application_qualify")) {
-      gaps.push(
-        "VitalEdge B2B: Add application funnel to qualify coaches before demo — filters better leads (Brandon With U model)"
-      );
-    }
-  }
-
-  if (isConsumerB2C || context === "social_post") {
-    if (failed.some((c) => c.id === "dm_funnel_cta")) {
-      gaps.push(
-        "Pinnacle B2C: Comment-to-DM automation is highest-converting channel (12–25%) — add keyword trigger to content"
-      );
-    }
-    if (failed.some((c) => c.id === "risk_reversal")) {
-      gaps.push(
-        "Pinnacle B2C: Guarantee is underused in AU coaching market — can increase conversions 3–5x (Hormozi)"
-      );
-    }
-    if (failed.some((c) => c.id === "problem_hook")) {
-      gaps.push(
-        "Pinnacle B2C: Use mirror/myth-bust hooks → DM funnel → qualify → discovery call → close"
-      );
-    }
-  }
-
-  if (failed.some((c) => c.id === "proof_volume")) {
-    gaps.push("Need more than 3 testimonials — show wall, numbers, specifics (Zac Perna: '13,000 physiques transformed')");
-  }
-
-  return [...new Set(gaps)].slice(0, 5);
-}
-
 function buildAuditSection(
+  profile: ContentProfile,
   context: AuditContext,
   score: number,
-  checks: AuditCheckResult[],
+  passedChecks: AuditCheckResult[],
+  failedChecks: AuditCheckResult[],
   criticalGaps: string[],
-  vitalEdgeGaps: string[],
   passed: number,
   total: number
 ): AnalysisSection {
-  const contextLabel =
-    context === "landing_page"
-      ? "Landing Page"
-      : context === "social_post"
-        ? "Social Content"
-        : context === "business_copy"
-          ? "Business Copy"
-          : "App Listing";
-
-  const passedChecks = checks.filter((c) => c.passed);
-  const failedChecks = checks.filter((c) => !c.passed);
+  const passedInsights = buildPassedInsights(profile, passedChecks);
+  const failedFixes = buildFailedFixes(profile, failedChecks);
 
   return {
     id: "marketing-intelligence-audit",
-    title: "Marketing Intelligence Audit",
+    title: `${profile.brandName} — Marketing Audit`,
     category: "marketing",
-    summary: `${contextLabel} scored ${score}/100 against VitalEdge Hub / Pinnacle Coaching benchmarks (${passed}/${total} criteria passed). Sources: Hormozi, Brandon Willington, Zac Perna, fitness industry 2026 data.`,
+    summary: buildContextualSummary(profile, score, passed, total, context),
     details: [
-      ...criticalGaps.map((g) => `⚠ Critical gap: ${g}`),
-      ...vitalEdgeGaps.map((g) => `→ VitalEdge/Pinnacle: ${g}`),
+      `About: ${profile.subject}`,
+      `Audience: ${profile.audience}`,
+      `Detected focus: ${profile.keyTopics.length > 0 ? profile.keyTopics.join(", ") : profile.offering}`,
+      profile.ctasFound.length > 0 ? `CTAs found: ${profile.ctasFound.join(" · ")}` : "No CTAs detected",
       "",
-      "Passed benchmarks:",
-      ...(passedChecks.length > 0
-        ? passedChecks.map((c) => `✓ ${c.label} (${c.framework}): ${c.message}`)
-        : ["None — significant gaps vs industry leaders"]),
+      "Priority fixes for this content:",
+      ...criticalGaps.map((g) => `→ ${g}`),
       "",
-      "Failed benchmarks:",
-      ...failedChecks.slice(0, 8).map((c) => `✗ ${c.label} (${c.framework}): ${c.recommendation}`),
-      "",
-      `Benchmark sources: ${BENCHMARK_SOURCES.slice(0, 4).join("; ")}…`,
+      ...(passedInsights.length > 0
+        ? ["What's working:", ...passedInsights.map((p) => `✓ ${p}`), ""]
+        : []),
+      ...(failedFixes.length > 0
+        ? ["Specific rewrites needed:", ...failedFixes.map((f) => `✗ ${f}`)]
+        : []),
     ],
     metrics: [
       { label: "Benchmark Score", value: `${score}/100` },
       { label: "Criteria Passed", value: `${passed}/${total}` },
-      { label: "Context", value: contextLabel },
-      { label: "Intelligence Base", value: "July 2026" },
+      { label: "Niche", value: profile.niche },
+      { label: "Hero / Opening", value: profile.heroLine.slice(0, 40) + (profile.heroLine.length > 40 ? "…" : "") },
     ],
     highlights: [
       ...(score >= 70
-        ? [{ type: "positive" as const, text: "Meets majority of elite marketer benchmarks" }]
-        : [{ type: "negative" as const, text: "Below benchmark — significant gaps vs Hormozi/Brandon/Zac Perna playbooks" }]),
-      ...(passedChecks.some((c) => c.id === "specific_outcome")
-        ? [{ type: "positive" as const, text: "Grand Slam Offer structure partially present" }]
-        : [{ type: "negative" as const, text: "Generic offer language — not a Grand Slam Offer" }]),
-      ...(passedChecks.some((c) => c.id === "dm_funnel_cta")
-        ? [{ type: "positive" as const, text: "DM funnel CTA aligned with 2026 Instagram best practice" }]
-        : context === "social_post"
-          ? [{ type: "negative" as const, text: "Missing comment-to-DM trigger (12–25% vs 1.5–3% link-in-bio)" }]
-          : []),
+        ? [{ type: "positive" as const, text: `${profile.brandName}'s ${profile.keyTopics[0] ?? "messaging"} aligns with top performer patterns` }]
+        : [{ type: "negative" as const, text: `${profile.brandName}'s hero doesn't yet sell a specific outcome to ${profile.audience}` }]),
+      ...(GENERIC_OFFER_PHRASES.some((p) => p.test(profile.heroLine + profile.offering))
+        ? [{ type: "negative" as const, text: `Generic offer language detected — sharpen for ${profile.niche}` }]
+        : []),
+      ...(passedChecks.some((c) => c.id === "proof_volume")
+        ? [{ type: "positive" as const, text: `Proof elements present — add ${profile.audience}-specific results` }]
+        : [{ type: "negative" as const, text: `No proof volume for ${profile.brandName} — add client numbers or case results` }]),
     ],
   };
-}
-
-function buildAuditActionItems(
-  failed: AuditCheckResult[],
-  vitalEdgeGaps: string[],
-  context: AuditContext
-): { priority: "high" | "medium" | "low"; action: string }[] {
-  const items: { priority: "high" | "medium" | "low"; action: string }[] = [];
-
-  const highPriorityIds = new Set([
-    "specific_outcome",
-    "risk_reversal",
-    "dm_funnel_cta",
-    "hook_strength",
-    "problem_hook",
-    "strong_cta",
-    "application_qualify",
-  ]);
-
-  for (const check of failed) {
-    if (highPriorityIds.has(check.id)) {
-      items.push({
-        priority: "high",
-        action: `[${check.framework}] ${check.recommendation}`,
-      });
-    }
-  }
-
-  for (const gap of vitalEdgeGaps.slice(0, 2)) {
-    items.push({ priority: "high", action: gap });
-  }
-
-  for (const check of failed) {
-    if (!highPriorityIds.has(check.id) && items.length < 8) {
-      items.push({
-        priority: "medium",
-        action: `[${check.framework}] ${check.recommendation}`,
-      });
-    }
-  }
-
-  if (context === "social_post" && failed.some((c) => c.id === "dm_funnel_cta")) {
-    items.unshift({
-      priority: "high",
-      action:
-        "Add comment-to-DM CTA: 'DM me [KEYWORD]' — benchmark 12–25% conversion vs 1.5–3% link-in-bio (Pinnacle B2C priority)",
-    });
-  }
-
-  if (items.length === 0) {
-    items.push({
-      priority: "low",
-      action: "A/B test against Hormozi Value Equation levers — dream outcome, proof, speed, effort reduction",
-    });
-  }
-
-  return items.slice(0, 8);
 }
 
 export function enrichReportWithAudit(
   report: AnalysisReport,
   audit: MarketingAuditResult
 ): AnalysisReport {
-  const existingIds = new Set(report.actionItems.map((a) => a.action));
-  const newActions = audit.actionItems.filter((a) => !existingIds.has(a.action));
+  const existingActions = new Set(report.actionItems.map((a) => a.action));
+  const newActions = audit.actionItems.filter((a) => !existingActions.has(a.action));
 
   const mergedScores = [...report.scores];
   for (const score of audit.scores) {
@@ -354,16 +220,20 @@ export function enrichReportWithAudit(
     report.overallScore * existingWeight + audit.overallScore * marketingScoreWeight
   );
 
+  const contextualActionItems = [
+    ...newActions,
+    ...report.actionItems.filter((a) => !newActions.some((n) => n.action === a.action)),
+  ].slice(0, 10);
+
   return {
     ...report,
     overallScore,
     scores: mergedScores,
-    sections: [...report.sections, audit.section],
-    actionItems: [
-      ...newActions.slice(0, 4),
-      ...report.actionItems,
-      ...newActions.slice(4),
-    ].slice(0, 12),
-    subtitle: `${report.subtitle} · Benchmark ${audit.overallScore}/100`,
+    sections: [
+      ...report.sections.filter((s) => s.id !== "marketing-intelligence-audit"),
+      audit.section,
+    ],
+    actionItems: contextualActionItems,
+    subtitle: `${audit.profile.brandName} · ${audit.profile.niche} · Benchmark ${audit.overallScore}/100`,
   };
 }

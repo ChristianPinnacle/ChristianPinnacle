@@ -14,6 +14,7 @@ import {
 } from "@/lib/utils";
 import { normalizeUrl } from "@/lib/analyzers/detect";
 import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
+import { buildContentProfile, type ContentProfile } from "@/lib/intelligence/content-profile";
 
 export async function analyzeUrl(input: string): Promise<AnalysisReport> {
   const url = normalizeUrl(input);
@@ -106,18 +107,30 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
     { label: "Marketing", score: marketingScore, description: "Conversion and brand presence signals" },
   ];
 
+  const auditText = [ogTitle, description, headings.map((h) => h.text).join(" "), bodyText.slice(0, 8000), ctaTexts.join(" ")].join("\n");
+
+  const profile = buildContentProfile({
+    text: auditText,
+    url: finalUrl,
+    title: ogTitle,
+    description,
+    headings: headings.map((h) => h.text),
+    ctas: ctaTexts,
+  });
+
   const sections: AnalysisSection[] = [
     {
       id: "overview",
       title: "Executive Summary",
       category: "overview",
-      summary: `${ogTitle} is a ${wordCount > 500 ? "content-rich" : "lightweight"} web presence with an overall health score of ${overallScore}/100.`,
+      summary: `${profile.brandName} (${profile.niche}) — ${wordCount.toLocaleString()} words, ${overallScore}/100 health score. Focus: ${profile.keyTopics.join(", ") || profile.offering}.`,
       details: [
         `Page title: "${title}"`,
-        description ? `Meta description present (${description.length} characters)` : "No meta description detected — search engines will auto-generate snippets",
-        `${headings.length} headings structure the page content`,
-        `${links.length} total links (${internalLinks} internal, ${externalLinks} external)`,
-        `Estimated reading time: ${readingTimeMinutes(bodyText)} min (${wordCount.toLocaleString()} words)`,
+        `Hero/H1: ${headings.find((h) => h.level === 1)?.text ? `"${headings.find((h) => h.level === 1)!.text}"` : "Missing — add one H1 with your core promise"}`,
+        description ? `Meta description (${description.length} chars): "${description.slice(0, 100)}${description.length > 100 ? "…" : ""}"` : `No meta description — Google will pull random text from ${profile.brandName}'s page`,
+        `Target audience signal: ${profile.audience}`,
+        `CTAs on page: ${ctaTexts.length > 0 ? ctaTexts.join(", ") : `None — ${profile.audience} have no clear next step`}`,
+        `Response: ${responseTimeMs}ms · ${links.length} links · ${wordCount.toLocaleString()} words`,
       ],
       metrics: [
         { label: "HTTP Status", value: String(status) },
@@ -148,11 +161,12 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
       title: "Content & Messaging",
       category: "content",
       summary: wordCount > 300
-        ? "The page has substantial content. Review messaging clarity and call-to-action placement."
-        : "Content is thin. Consider expanding with value-driven copy, FAQs, and social proof.",
+        ? `${profile.brandName}'s page covers ${profile.keyTopics.join(", ") || "your offer"} in depth — tighten hero and CTA for ${profile.audience}.`
+        : `${profile.brandName}'s page is thin (${wordCount} words). Expand with proof, FAQ, and specifics about ${profile.offering}.`,
       details: [
-        `Primary headings: ${headings.slice(0, 5).map((h) => `H${h.level}: ${h.text}`).join(" | ") || "None detected"}`,
-        `Call-to-action elements found: ${ctaTexts.length > 0 ? ctaTexts.slice(0, 5).join(", ") : "None clearly identified"}`,
+        `Headings: ${headings.slice(0, 5).map((h) => `H${h.level}: ${h.text}`).join(" | ") || "None"}`,
+        `Hero message: "${profile.heroLine}" — ${profile.keyTopics.length > 0 ? `ties to ${profile.keyTopics.join(", ")}` : "topic unclear from headings"}`,
+        `CTAs: ${ctaTexts.length > 0 ? ctaTexts.join(", ") : `Add one for ${profile.audience} — e.g. demo, trial, or application`}`,
         `Image assets: ${images} total, ${imagesWithAlt} with alt text (${images > 0 ? Math.round((imagesWithAlt / images) * 100) : 0}% coverage)`,
       ],
       metrics: [
@@ -192,20 +206,21 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
     },
   ];
 
-  const actionItems = buildUrlActionItems({
-    description,
-    h1Count,
-    hasSchema,
-    ogImage: !!ogImage,
-    hasHttps,
-    viewport: !!viewport,
-    images,
-    imagesWithAlt,
-    responseTimeMs,
-    ctaCount: ctaTexts.length,
-  });
-
-  const auditText = [ogTitle, description, headings.map((h) => h.text).join(" "), bodyText.slice(0, 8000), ctaTexts.join(" ")].join("\n");
+  const actionItems = buildUrlActionItems(
+    {
+      description,
+      h1Count,
+      hasSchema,
+      ogImage: !!ogImage,
+      hasHttps,
+      viewport: !!viewport,
+      images,
+      imagesWithAlt,
+      responseTimeMs,
+      ctaCount: ctaTexts.length,
+    },
+    profile
+  );
 
   const baseReport: AnalysisReport = {
     id: generateId(),
@@ -221,7 +236,13 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
     actionItems,
   };
 
-  const audit = runMarketingAudit(auditText, "landing_page");
+  const audit = runMarketingAudit(auditText, "landing_page", {
+    url: finalUrl,
+    title: ogTitle,
+    description,
+    headings: headings.map((h) => h.text),
+    ctas: ctaTexts,
+  });
   return enrichReportWithAudit(baseReport, audit);
 }
 
@@ -374,31 +395,52 @@ function buildSeoHighlights(ctx: {
   return highlights;
 }
 
-function buildUrlActionItems(ctx: {
-  description: string;
-  h1Count: number;
-  hasSchema: boolean;
-  ogImage: boolean;
-  hasHttps: boolean;
-  viewport: boolean;
-  images: number;
-  imagesWithAlt: number;
-  responseTimeMs: number;
-  ctaCount: number;
-}) {
+function buildUrlActionItems(
+  ctx: {
+    description: string;
+    h1Count: number;
+    hasSchema: boolean;
+    ogImage: boolean;
+    hasHttps: boolean;
+    viewport: boolean;
+    images: number;
+    imagesWithAlt: number;
+    responseTimeMs: number;
+    ctaCount: number;
+  },
+  profile: ContentProfile
+) {
   const items: { priority: "high" | "medium" | "low"; action: string }[] = [];
-  if (!ctx.hasHttps) items.push({ priority: "high", action: "Enable HTTPS with a valid SSL certificate" });
-  if (!ctx.description) items.push({ priority: "high", action: "Write a compelling meta description (120-160 characters)" });
-  if (ctx.h1Count !== 1) items.push({ priority: "high", action: "Ensure exactly one H1 tag per page with primary keyword" });
-  if (!ctx.ogImage) items.push({ priority: "medium", action: "Add an Open Graph image for better social media previews" });
-  if (!ctx.hasSchema) items.push({ priority: "medium", action: "Implement Schema.org structured data (Organization, Product, or Article)" });
-  if (!ctx.viewport) items.push({ priority: "high", action: "Add viewport meta tag for mobile responsiveness" });
-  if (ctx.images > 0 && ctx.imagesWithAlt / ctx.images < 0.8) {
-    items.push({ priority: "medium", action: "Add descriptive alt text to all images" });
+  const topic = profile.keyTopics[0] ?? profile.offering;
+
+  if (!ctx.hasHttps) items.push({ priority: "high", action: `${profile.brandName}: Enable HTTPS — ${profile.audience} won't trust a non-secure site.` });
+  if (!ctx.description) {
+    items.push({
+      priority: "high",
+      action: `Write meta description for ${profile.brandName}: "${profile.brandName} helps ${profile.audience} [outcome] with ${topic}" — 120–155 chars.`,
+    });
   }
-  if (ctx.responseTimeMs > 2000) items.push({ priority: "medium", action: "Optimize page load speed — consider CDN, image compression, and caching" });
-  if (ctx.ctaCount < 1) items.push({ priority: "medium", action: "Add clear call-to-action buttons above the fold" });
-  if (items.length === 0) items.push({ priority: "low", action: "Monitor Core Web Vitals and run periodic SEO audits" });
+  if (ctx.h1Count !== 1) {
+    items.push({
+      priority: "high",
+      action: `${profile.brandName} has ${ctx.h1Count} H1 tags — use one: an outcome promise for ${profile.audience}, not "${profile.heroLine.slice(0, 40)}…" as a feature list.`,
+    });
+  }
+  if (ctx.ctaCount < 1) {
+    items.push({ priority: "high", action: `Add one CTA above the fold on ${profile.brandName} for ${profile.audience} — demo, trial, or application.` });
+  }
+  if (!ctx.ogImage) items.push({ priority: "medium", action: `${profile.brandName}: Add OG image showing ${topic} — link previews on social currently have no visual.` });
+  if (!ctx.hasSchema) items.push({ priority: "medium", action: `Add Schema.org to ${profile.brandName} (SoftwareApplication or Organization) for ${profile.niche ?? "your category"}.` });
+  if (!ctx.viewport) items.push({ priority: "high", action: `${profile.brandName}: Add mobile viewport — ${profile.audience} likely browse on phone.` });
+  if (ctx.images > 0 && ctx.imagesWithAlt / ctx.images < 0.8) {
+    items.push({ priority: "medium", action: `${profile.brandName}: ${ctx.images - ctx.imagesWithAlt} images missing alt text — describe ${topic} in alts for SEO.` });
+  }
+  if (ctx.responseTimeMs > 2000) {
+    items.push({ priority: "medium", action: `${profile.brandName} loads in ${ctx.responseTimeMs}ms — compress images and enable CDN; slow pages lose ${profile.audience}.` });
+  }
+  if (items.length === 0) {
+    items.push({ priority: "low", action: `${profile.brandName} technicals are solid — focus on converting ${profile.audience} with sharper hero copy.` });
+  }
   return items;
 }
 

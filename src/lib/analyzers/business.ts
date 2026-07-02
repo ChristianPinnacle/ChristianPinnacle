@@ -110,7 +110,9 @@ export function analyzeBusiness(input: string): AnalysisReport {
     actionItems,
   };
 
-  const audit = runMarketingAudit(text, "business_copy");
+  const audit = runMarketingAudit(text, "business_copy", {
+    title: extractTitle(text) ?? undefined,
+  });
   return enrichReportWithAudit(baseReport, audit);
 }
 
