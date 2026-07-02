@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Globe,
   MessageSquare,
@@ -25,7 +25,7 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     id: "url",
     label: "Website",
     icon: Globe,
-    placeholder: "https://example.com",
+    placeholder: "https://vitaledgehub.com.au",
     hint: "Analyze SEO, content, technical health, and marketing signals",
   },
   {
@@ -61,11 +61,27 @@ export function InputPanel({ onAnalyze, isLoading }: InputPanelProps) {
   const [type, setType] = useState<InputType>("auto");
 
   const selected = INPUT_TYPES.find((t) => t.id === type) ?? INPUT_TYPES[0];
+  const canSubmit = input.trim().length > 0 && !isLoading;
+  const isMultiline = type === "business" || type === "social";
+
+  const submit = useCallback(() => {
+    const trimmed = input.trim();
+    if (trimmed && !isLoading) {
+      onAnalyze(trimmed, type);
+    }
+  }, [input, isLoading, onAnalyze, type]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
-      onAnalyze(input.trim(), type);
+    submit();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey || !isMultiline)) {
+      if (!isMultiline || e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        submit();
+      }
     }
   }
 
@@ -90,40 +106,59 @@ export function InputPanel({ onAnalyze, isLoading }: InputPanelProps) {
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="relative">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={selected.placeholder}
-          rows={type === "business" || type === "social" ? 5 : 3}
-          className="w-full px-5 py-4 pr-36 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 resize-none text-base leading-relaxed backdrop-blur-sm"
-          disabled={isLoading}
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || isLoading}
-          className={cn(
-            "absolute right-3 bottom-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all",
-            input.trim() && !isLoading
-              ? "bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/30"
-              : "bg-slate-700 text-slate-500 cursor-not-allowed"
-          )}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Analyzing…
-            </>
-          ) : (
-            <>
-              Analyze
-              <ArrowRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
-      </form>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {isMultiline ? (
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={selected.placeholder}
+            rows={5}
+            className="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 resize-none text-base leading-relaxed backdrop-blur-sm"
+            disabled={isLoading}
+          />
+        ) : (
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={selected.placeholder}
+            className="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 text-base leading-relaxed backdrop-blur-sm"
+            disabled={isLoading}
+            autoComplete="url"
+          />
+        )}
 
-      <p className="mt-3 text-sm text-slate-500">{selected.hint}</p>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-slate-500">
+            {selected.hint}
+            {isMultiline && " · Ctrl+Enter to analyze"}
+          </p>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className={cn(
+              "shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all",
+              canSubmit
+                ? "bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/30 cursor-pointer"
+                : "bg-slate-700 text-slate-500 cursor-not-allowed"
+            )}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                Analyze
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
