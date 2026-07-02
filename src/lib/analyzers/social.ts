@@ -1,5 +1,6 @@
 import type { AnalysisReport, AnalysisSection, ScoreMetric } from "@/lib/types";
 import { clamp, countWords, generateId } from "@/lib/utils";
+import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
 
 type SocialPlatform = "twitter" | "linkedin" | "instagram" | "facebook" | "tiktok" | "youtube" | "threads" | "unknown";
 
@@ -114,7 +115,7 @@ export function analyzeSocial(input: string): AnalysisReport {
 
   const actionItems = buildSocialActionItems(parsed, platform, charCount, limits, ctaScore, hashtagScore);
 
-  return {
+  const baseReport: AnalysisReport = {
     id: generateId(),
     inputType: "social",
     detectedType: "social",
@@ -127,6 +128,9 @@ export function analyzeSocial(input: string): AnalysisReport {
     sections,
     actionItems,
   };
+
+  const audit = runMarketingAudit(text, "social_post");
+  return enrichReportWithAudit(baseReport, audit);
 }
 
 function parseSocialInput(input: string): ParsedPost {

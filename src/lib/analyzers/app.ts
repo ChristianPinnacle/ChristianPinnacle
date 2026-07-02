@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { AnalysisReport, AnalysisSection, ScoreMetric } from "@/lib/types";
 import { clamp, generateId, fetchWithTimeout } from "@/lib/utils";
 import { normalizeUrl } from "@/lib/analyzers/detect";
+import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
 
 type AppStore = "apple" | "google" | "unknown";
 
@@ -119,7 +120,9 @@ export async function analyzeApp(input: string): Promise<AnalysisReport> {
 
   const actionItems = buildAppActionItems(appInfo, store, asoScore, listingScore);
 
-  return {
+  const auditText = [appInfo.name, appInfo.description, appInfo.category, appInfo.price].join("\n");
+
+  const baseReport: AnalysisReport = {
     id: generateId(),
     inputType: "app",
     detectedType: "app",
@@ -132,6 +135,9 @@ export async function analyzeApp(input: string): Promise<AnalysisReport> {
     sections,
     actionItems,
   };
+
+  const audit = runMarketingAudit(auditText, "app_listing");
+  return enrichReportWithAudit(baseReport, audit);
 }
 
 function detectStore(url: string): AppStore {

@@ -79,8 +79,9 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Paste a URL, social post, app link, or business description. Get comprehensive analysis
-            with scores, actionable recommendations, and strategic guidance.
+            Paste a URL, social post, app link, or business description. Every analysis is audited
+            against VitalEdge Hub / Pinnacle Coaching marketing intelligence — Hormozi, Brandon
+            Willington, Zac Perna, and 2026 fitness industry benchmarks.
           </p>
         </div>
       </section>

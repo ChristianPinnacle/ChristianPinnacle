@@ -35,7 +35,16 @@ Open [http://localhost:3000](http://localhost:3000) and paste any input — BizL
 - **Tailwind CSS 4**
 - **Cheerio** for HTML parsing and metadata extraction
 
-## Project structure
+Every analysis includes a **Marketing Intelligence Audit** scored against VitalEdge Hub / Pinnacle Coaching benchmarks:
+
+- **Alex Hormozi** — Grand Slam Offer, Value Equation, free→workshop funnel
+- **Brandon Willington** — With U application funnel, specificity, FAQ objection handling
+- **Zac Perna** — Value stack, guarantee, price anchoring
+- **Tony Robbins** — Assessment/quiz funnel, segmented CTAs
+- **Fitness industry 2026** — Mirror/myth-bust hooks, comment-to-DM funnel, landing page anatomy
+- **VitalEdge/Pinnacle gaps** — B2B coach platform pain, B2C DM funnel priorities
+
+Audit criteria live in `src/lib/intelligence/criteria.ts`.
 
 ```
 src/

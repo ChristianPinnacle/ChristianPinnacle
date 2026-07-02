@@ -13,6 +13,7 @@ import {
   stripHtml,
 } from "@/lib/utils";
 import { normalizeUrl } from "@/lib/analyzers/detect";
+import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
 
 export async function analyzeUrl(input: string): Promise<AnalysisReport> {
   const url = normalizeUrl(input);
@@ -204,7 +205,9 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
     ctaCount: ctaTexts.length,
   });
 
-  return {
+  const auditText = [ogTitle, description, headings.map((h) => h.text).join(" "), bodyText.slice(0, 8000), ctaTexts.join(" ")].join("\n");
+
+  const baseReport: AnalysisReport = {
     id: generateId(),
     inputType: "url",
     detectedType: "url",
@@ -217,6 +220,9 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
     sections,
     actionItems,
   };
+
+  const audit = runMarketingAudit(auditText, "landing_page");
+  return enrichReportWithAudit(baseReport, audit);
 }
 
 function buildErrorReport(input: string, url: string, analyzedAt: string, error: string): AnalysisReport {

@@ -8,6 +8,7 @@ import {
   Target,
   Zap,
   Clock,
+  BookOpen,
 } from "lucide-react";
 import type { AnalysisReport } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
@@ -123,10 +124,16 @@ export function AnalysisReportView({ report }: AnalysisReportViewProps) {
         <h3 className="text-lg font-semibold text-white">Detailed Analysis</h3>
         {report.sections.map((section) => {
           const isExpanded = expandedSections.has(section.id);
+          const isBenchmark = section.id === "marketing-intelligence-audit";
           return (
             <div
               key={section.id}
-              className="rounded-xl bg-slate-900/40 border border-white/5 overflow-hidden"
+              className={cn(
+                "rounded-xl overflow-hidden",
+                isBenchmark
+                  ? "bg-gradient-to-br from-violet-950/40 to-slate-900/40 border border-violet-500/30"
+                  : "bg-slate-900/40 border border-white/5"
+              )}
             >
               <button
                 type="button"
@@ -134,9 +141,15 @@ export function AnalysisReportView({ report }: AnalysisReportViewProps) {
                 className="w-full flex items-center justify-between p-5 text-left hover:bg-white/5 transition-colors"
               >
                 <div>
-                  <span className="text-xs font-medium text-indigo-400 uppercase tracking-wider">
-                    {section.category}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {isBenchmark && <BookOpen className="w-4 h-4 text-violet-400" />}
+                    <span className={cn(
+                      "text-xs font-medium uppercase tracking-wider",
+                      isBenchmark ? "text-violet-400" : "text-indigo-400"
+                    )}>
+                      {isBenchmark ? "VitalEdge / Pinnacle Benchmark" : section.category}
+                    </span>
+                  </div>
                   <h4 className="text-base font-semibold text-white mt-0.5">{section.title}</h4>
                   <p className="text-sm text-slate-400 mt-1 line-clamp-1">{section.summary}</p>
                 </div>

@@ -1,5 +1,6 @@
 import type { AnalysisReport, AnalysisSection, ScoreMetric } from "@/lib/types";
 import { clamp, countWords, generateId, readingTimeMinutes } from "@/lib/utils";
+import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
 
 export function analyzeBusiness(input: string): AnalysisReport {
   const analyzedAt = new Date().toISOString();
@@ -95,7 +96,7 @@ export function analyzeBusiness(input: string): AnalysisReport {
 
   const actionItems = buildBusinessActionItems(text, valuePropScore, audienceScore, clarityScore);
 
-  return {
+  const baseReport: AnalysisReport = {
     id: generateId(),
     inputType: "business",
     detectedType: "business",
@@ -108,6 +109,9 @@ export function analyzeBusiness(input: string): AnalysisReport {
     sections,
     actionItems,
   };
+
+  const audit = runMarketingAudit(text, "business_copy");
+  return enrichReportWithAudit(baseReport, audit);
 }
 
 function computeClarityScore(text: string, sentences: string[]): number {
