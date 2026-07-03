@@ -4,7 +4,7 @@
  * Tony Robbins, fitness industry 2026 data, and podcast intelligence (July 2026).
  */
 
-export type AuditContext = "landing_page" | "social_post" | "business_copy" | "app_listing";
+export type AuditContext = "landing_page" | "social_post" | "business_copy" | "app_listing" | "instagram_profile";
 
 export interface AuditCriterion {
   id: string;
@@ -332,6 +332,66 @@ export const LANDING_PAGE_CRITERIA: AuditCriterion[] = [
   },
 ];
 
+export const INSTAGRAM_PROFILE_CRITERIA: AuditCriterion[] = [
+  {
+    id: "bio_dm_funnel",
+    label: "Bio DM Funnel CTA",
+    framework: "Instagram 2026 — 12–25% conversion vs 1.5–3% link-in-bio",
+    weight: 15,
+    test: (t) => /\b(DM me|comment\s+["']?\w+["']?|message me|👇|⬇️)\b/i.test(t),
+    failMessage: "Bio has no DM keyword — highest-converting path for fitness coaches",
+    passMessage: "Comment-to-DM trigger in bio",
+    recommendation: "Add: '👇 Comment COACH for my free starter plan' — not just 'link in bio'",
+  },
+  {
+    id: "bio_outcome",
+    label: "Bio Outcome Clarity",
+    framework: "Instagram Profile Anatomy 2026",
+    weight: 12,
+    test: (t) =>
+      t.length >= 40 &&
+      !/\b(living my best|fitness journey|online coaching)\b/i.test(t) &&
+      (/\b(help|coach|transform|build|lose|gain|scale|for)\b/i.test(t) ||
+        VALUE_EQUATION_SIGNALS.dreamOutcome.test(t)),
+    failMessage: "Bio is too vague or generic — profile visitors can't tell what you deliver",
+    passMessage: "Bio communicates a clear outcome or offer",
+    recommendation: "Line 1: who you help + outcome. Line 2: how. Line 3: DM keyword.",
+  },
+  {
+    id: "bio_niche_focus",
+    label: "Niche Topic Clarity",
+    framework: "Instagram Algorithm 2026 — topic consistency",
+    weight: 10,
+    test: (t) =>
+      /\b(coach|trainer|nutrition|macro|PT|online|fat loss|muscle|strength|agency|marketing)\b/i.test(t),
+    failMessage: "Bio doesn't signal a niche — algorithm can't classify your account",
+    passMessage: "Clear niche keywords in bio",
+    recommendation: "Add niche to name field + bio: '| Online Coach' or 'Fat loss for busy dads'",
+  },
+  {
+    id: "bio_length",
+    label: "Bio Length & Structure",
+    framework: "Instagram Profile Best Practice",
+    weight: 8,
+    test: (t) => t.length >= 50 && t.length <= 150 && t.split(/\n/).length >= 2,
+    failMessage: "Bio too short, too long, or single block — use 2–3 lines with breaks",
+    passMessage: "Bio uses line breaks and fits Instagram limits",
+    recommendation: "Use 2–3 lines (50–150 chars): outcome → proof/method → CTA with emoji pointer",
+  },
+  {
+    id: "link_vs_dm",
+    label: "Link-in-Bio vs DM Strategy",
+    framework: "Fitness Conversion Data 2026",
+    weight: 8,
+    test: (t) =>
+      /\b(DM me|comment \w+|message me)\b/i.test(t) ||
+      (!/\blink in bio\b/i.test(t) && /\b(free|book|apply|download)\b/i.test(t)),
+    failMessage: "Only 'link in bio' with no DM path — coaches convert 8–15x better with comment-to-DM",
+    passMessage: "DM-first or strong direct CTA in bio",
+    recommendation: "Replace passive 'link in bio' with 'Comment READY below' + ManyChat auto-DM",
+  },
+];
+
 export const VITALEDGE_CRITERIA: AuditCriterion[] = [
   {
     id: "coach_platform_pain",
@@ -368,6 +428,9 @@ export function getCriteriaForContext(context: AuditContext): AuditCriterion[] {
   }
   if (context === "business_copy") {
     return [...base, ...VITALEDGE_CRITERIA];
+  }
+  if (context === "instagram_profile") {
+    return [...base, ...INSTAGRAM_PROFILE_CRITERIA];
   }
   return base;
 }

@@ -1,4 +1,5 @@
 import type { InputType } from "@/lib/types";
+import { isInstagramProfileInput } from "@/lib/analyzers/instagram-profile";
 
 const APP_PATTERNS = [
   /apps\.apple\.com/i,
@@ -22,6 +23,7 @@ const SOCIAL_PATTERNS = [
 export function detectInputType(input: string): InputType {
   const trimmed = input.trim();
 
+  if (isInstagramProfileInput(trimmed)) return "instagram_profile";
   if (APP_PATTERNS.some((p) => p.test(trimmed))) return "app";
   if (SOCIAL_PATTERNS.some((p) => p.test(trimmed))) return "social";
 

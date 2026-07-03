@@ -31,6 +31,26 @@ export function generateConcreteSolutions(ctx: SolutionContext): CopySolution[] 
     solutions.unshift(...socialPostRewrite(ctx));
   }
 
+  if (ctx.context === "instagram_profile" && failedIds.has("bio_dm_funnel")) {
+    solutions.unshift({
+      label: "Bio DM keyword",
+      priority: "high",
+      problem: `${ctx.profile.brandName}'s bio has no comment-to-DM trigger.`,
+      placement: "Instagram → Edit profile → Bio (last line)",
+      copy: `👇 Comment COACH for my free starter plan`,
+    });
+  }
+
+  if (ctx.context === "instagram_profile" && failedIds.has("bio_outcome")) {
+    solutions.unshift({
+      label: "Bio outcome line",
+      priority: "high",
+      problem: `${ctx.profile.brandName}'s bio doesn't state who you help or what they get.`,
+      placement: "Instagram → Edit profile → Bio (line 1)",
+      copy: `I help busy adults lose fat & build muscle without giving up their social life`,
+    });
+  }
+
   if (ctx.context === "landing_page" && failedIds.has("objection_handling")) {
     solutions.push(...faqBlock(ctx));
   }

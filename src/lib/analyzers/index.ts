@@ -4,6 +4,7 @@ import { analyzeUrl } from "@/lib/analyzers/url";
 import { analyzeSocial } from "@/lib/analyzers/social";
 import { analyzeApp } from "@/lib/analyzers/app";
 import { analyzeBusiness } from "@/lib/analyzers/business";
+import { analyzeInstagramProfile } from "@/lib/analyzers/analyze-instagram-profile";
 
 export async function runAnalysis(input: string, type: InputType = "auto"): Promise<AnalysisReport> {
   const trimmed = input.trim();
@@ -26,6 +27,9 @@ export async function runAnalysis(input: string, type: InputType = "auto"): Prom
       break;
     case "business":
       report = analyzeBusiness(trimmed);
+      break;
+    case "instagram_profile":
+      report = await analyzeInstagramProfile(trimmed);
       break;
     default:
       report = analyzeBusiness(trimmed);

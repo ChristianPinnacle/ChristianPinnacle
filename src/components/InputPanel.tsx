@@ -9,6 +9,7 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
+  UserRound,
 } from "lucide-react";
 import type { InputType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,13 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     icon: MessageSquare,
     placeholder: "Paste your post copy or social media URL…",
     hint: "Get engagement, hashtag, and platform-specific tips",
+  },
+  {
+    id: "instagram_profile",
+    label: "Instagram Profile",
+    icon: UserRound,
+    placeholder: "instagram.com/username or @username | paste bio here",
+    hint: "Bio audit, DM funnel, Highlights plan — paste bio after | if fetch is blocked",
   },
   {
     id: "app",
@@ -62,7 +70,7 @@ export function InputPanel({ onAnalyze, isLoading }: InputPanelProps) {
 
   const selected = INPUT_TYPES.find((t) => t.id === type) ?? INPUT_TYPES[0];
   const canSubmit = input.trim().length > 0 && !isLoading;
-  const isMultiline = type === "business" || type === "social";
+  const isMultiline = type === "business" || type === "social" || type === "instagram_profile";
 
   const submit = useCallback(() => {
     const trimmed = input.trim();

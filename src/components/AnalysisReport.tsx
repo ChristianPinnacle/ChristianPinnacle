@@ -26,6 +26,15 @@ const PRIORITY_STYLES = {
   low: "border-slate-500/30 bg-slate-500/10 text-slate-400",
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  auto: "Auto",
+  url: "Website",
+  social: "Social Post",
+  app: "Mobile App",
+  business: "Business",
+  instagram_profile: "Instagram Profile",
+};
+
 export function AnalysisReportView({ report }: AnalysisReportViewProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(report.sections.map((s) => s.id))
@@ -53,7 +62,7 @@ export function AnalysisReportView({ report }: AnalysisReportViewProps) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 capitalize">
-              {report.detectedType === "auto" ? "Auto" : report.detectedType}
+              {TYPE_LABELS[report.detectedType] ?? report.detectedType}
             </span>
             <span className="flex items-center gap-1 text-xs text-slate-500">
               <Clock className="w-3 h-3" />

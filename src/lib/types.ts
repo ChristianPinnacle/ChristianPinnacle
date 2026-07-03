@@ -1,4 +1,4 @@
-export type InputType = "url" | "social" | "app" | "business" | "auto";
+export type InputType = "url" | "social" | "app" | "business" | "instagram_profile" | "auto";
 
 export type AnalysisCategory =
   | "overview"

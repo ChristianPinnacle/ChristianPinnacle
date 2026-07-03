@@ -143,6 +143,20 @@ export function buildContextualActionItems(
     });
   }
 
+  if (failedIds.has("bio_dm_funnel") && context === "instagram_profile") {
+    items.push({
+      priority: "high",
+      action: `Add DM keyword to @${brand}'s bio: "👇 Comment COACH for my free guide" — converts 12–25% vs 1.5–3% for link-in-bio.`,
+    });
+  }
+
+  if (failedIds.has("bio_outcome") && context === "instagram_profile") {
+    items.push({
+      priority: "high",
+      action: `Rewrite @${brand}'s bio line 1: who you help + specific outcome (not "online coaching" or "fitness journey").`,
+    });
+  }
+
   if (failedIds.has("strong_cta")) {
     const weak = profile.ctasFound.find((c) => /learn more|click here|submit/i.test(c));
     items.push({
@@ -213,7 +227,15 @@ export function buildContextualSummary(
   context: AuditContext
 ): string {
   const type =
-    context === "landing_page" ? "site" : context === "social_post" ? "post" : context === "app_listing" ? "app listing" : "copy";
+    context === "landing_page"
+      ? "site"
+      : context === "social_post"
+        ? "post"
+        : context === "instagram_profile"
+          ? "Instagram profile"
+          : context === "app_listing"
+            ? "app listing"
+            : "copy";
 
   const topicStr = profile.keyTopics.length > 0 ? profile.keyTopics.join(", ") : profile.offering;
 

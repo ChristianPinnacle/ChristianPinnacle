@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Shield, Zap, Layers } from "lucide-react";
+import { BarChart3, Shield, Zap, Layers, UserRound } from "lucide-react";
 import { InputPanel } from "@/components/InputPanel";
 import { AnalysisReportView } from "@/components/AnalysisReport";
 import type { AnalysisReport, InputType } from "@/lib/types";
@@ -16,6 +16,11 @@ const FEATURES = [
     icon: Zap,
     title: "Social Media Intelligence",
     description: "Platform-specific engagement tips, hashtag strategy, and conversion optimization.",
+  },
+  {
+    icon: UserRound,
+    title: "Instagram Profile Audit",
+    description: "Bio rewrite, DM funnel, Highlights plan, and 2026 algorithm strategy for any @handle.",
   },
   {
     icon: Layers,
@@ -79,7 +84,7 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Paste a URL, social post, app link, or business description. Every analysis is audited
+            Paste a URL, social post, Instagram profile, app link, or business description. Every analysis is audited
             against VitalEdge Hub / Pinnacle Coaching marketing intelligence — Hormozi, Brandon
             Willington, Zac Perna, and 2026 fitness industry benchmarks.
           </p>
