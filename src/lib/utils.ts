@@ -79,6 +79,8 @@ export function extractTitle(html: string): string | null {
 
 function decodeHtmlEntities(text: string): string {
   return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -86,6 +88,8 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, " ");
 }
+
+export { decodeHtmlEntities };
 
 export function extractHeadings(html: string): { level: number; text: string }[] {
   const headings: { level: number; text: string }[] = [];
@@ -111,7 +115,8 @@ export function extractLinks(html: string): { href: string; text: string }[] {
 
 export async function fetchWithTimeout(
   url: string,
-  timeoutMs = 10000
+  timeoutMs = 10000,
+  extraHeaders: Record<string, string> = {}
 ): Promise<{ html: string; status: number; responseTimeMs: number; finalUrl: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -124,6 +129,7 @@ export async function fetchWithTimeout(
         "User-Agent":
           "BizLens/1.0 (Business Analysis Bot; +https://bizlens.app)",
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        ...extraHeaders,
       },
       redirect: "follow",
     });

@@ -4,6 +4,7 @@ import {
   parseInstagramInput,
   fetchInstagramProfile,
   formatFollowerCount,
+  profileBrandName,
   type InstagramProfileData,
 } from "@/lib/analyzers/instagram-profile";
 import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
@@ -48,7 +49,7 @@ export async function analyzeInstagramProfile(input: string): Promise<AnalysisRe
         `Display name: ${profile.displayName}`,
         profile.biography
           ? `Bio: "${profile.biography}"`
-          : "Bio: not detected — paste it after the URL: instagram.com/username | Your bio",
+          : "Bio: Instagram did not share it — paste your bio on a new line below the URL and re-analyze",
         `Followers: ${formatFollowerCount(profile.followers)} · Following: ${formatFollowerCount(profile.following)} · Posts: ${profile.posts ?? "?"}`,
         profile.externalUrl ? `Link in bio: ${profile.externalUrl}` : "No external link detected",
         profile.isBusiness ? "Account: Business/Creator ✓" : "Account: Switch to Creator for insights + contact buttons",
@@ -207,7 +208,12 @@ function scoreUsername(username: string): number {
 function analyzeBioDetails(profile: InstagramProfileData): string[] {
   const bio = profile.biography;
   if (!bio) {
-    return [`No bio detected for @${profile.username} — paste bio after URL: instagram.com/${profile.username} | Your bio text`];
+    return [
+      `Instagram blocked your bio from our fetch — this does NOT mean you don't have one.`,
+      `Paste your bio on a new line below the URL, or after | :`,
+      `instagram.com/${profile.username}`,
+      `Your exact bio text here (copy from Instagram → Edit profile)`,
+    ];
   }
   const lines = [
     `Current bio (${bio.length}/150 chars): "${bio}"`,
@@ -246,7 +252,7 @@ function generateProfileSolutions(
   scores: { bioScore: number; ctaScore: number; linkScore: number }
 ): CopySolution[] {
   const solutions: CopySolution[] = [];
-  const brand = profile.displayName;
+  const brand = profileBrandName(profile);
   const keyword = niche.keyword;
   const isCoach = /coach|trainer/i.test(niche.label);
 
@@ -255,8 +261,8 @@ function generateProfileSolutions(
       label: "Bio rewrite",
       priority: "high",
       problem: profile.biography
-        ? `Bio "${profile.biography.slice(0, 55)}…" missing outcome + DM trigger.`
-        : `@${profile.username} — no bio detected. Use template below.`,
+        ? `Bio "${profile.biography.slice(0, 55)}${profile.biography.length > 55 ? "…" : ""}" missing outcome + DM trigger.`
+        : `Instagram didn't share @${profile.username}'s bio — paste it below the URL, then re-analyze for a tailored rewrite.`,
       placement: "Instagram → Edit profile → Bio",
       copy: isCoach
         ? `I help online coaches & PT clients hit their goals ⬇️
