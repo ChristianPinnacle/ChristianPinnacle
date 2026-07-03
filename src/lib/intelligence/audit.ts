@@ -1,18 +1,19 @@
-import type { AnalysisReport, AnalysisSection, ScoreMetric } from "@/lib/types";
+import type { AnalysisReport, AnalysisSection, ScoreMetric, CopySolution } from "@/lib/types";
 import {
   type AuditContext,
-  GENERIC_OFFER_PHRASES,
   getCriteriaForContext,
 } from "@/lib/intelligence/criteria";
 import {
   buildContentProfile,
   type ContentProfile,
 } from "@/lib/intelligence/content-profile";
+import { extractDeepContent, type DeepContent } from "@/lib/intelligence/deep-extract";
 import {
-  buildContextualActionItems,
-  buildContextualGaps,
+  generateConcreteSolutions,
+  solutionsToActionItems,
+} from "@/lib/intelligence/solution-generator";
+import {
   buildContextualSummary,
-  buildFailedFixes,
   buildPassedInsights,
 } from "@/lib/intelligence/contextual-recommendations";
 
@@ -33,16 +34,19 @@ export interface AuditOptions {
   headings?: string[];
   ctas?: string[];
   platform?: string;
+  features?: string[];
+  listItems?: string[];
 }
 
 export interface MarketingAuditResult {
   context: AuditContext;
   profile: ContentProfile;
+  deep: DeepContent;
   overallScore: number;
   checks: AuditCheckResult[];
   passedCount: number;
   totalCount: number;
-  criticalGaps: string[];
+  solutions: CopySolution[];
   scores: ScoreMetric[];
   section: AnalysisSection;
   actionItems: { priority: "high" | "medium" | "low"; action: string }[];
@@ -56,6 +60,11 @@ export function runMarketingAudit(
   const criteria = getCriteriaForContext(context);
   const normalized = text.trim();
   const profile = buildContentProfile({ text: normalized, ...options });
+  const deep = extractDeepContent(
+    normalized,
+    options?.headings ?? profile.headings,
+    options?.listItems ?? options?.features ?? []
+  );
 
   const checks: AuditCheckResult[] = criteria.map((c) => {
     const passed = c.test(normalized);
@@ -78,19 +87,36 @@ export function runMarketingAudit(
   const passedChecks = checks.filter((c) => c.passed);
   const passedCount = passedChecks.length;
 
-  const criticalGaps = buildContextualGaps(profile, failed, normalized);
+  const solutions = generateConcreteSolutions({
+    profile,
+    deep,
+    failed,
+    context,
+    rawText: normalized,
+  });
+
   const categoryScores = computeCategoryScores(checks);
-  const section = buildAuditSection(profile, context, overallScore, passedChecks, failed, criticalGaps, passedCount, checks.length);
-  const actionItems = buildContextualActionItems(profile, failed, normalized, context);
+  const section = buildAuditSection(
+    profile,
+    deep,
+    context,
+    overallScore,
+    passedChecks,
+    solutions,
+    passedCount,
+    checks.length
+  );
+  const actionItems = solutionsToActionItems(solutions);
 
   return {
     context,
     profile,
+    deep,
     overallScore,
     checks,
     passedCount,
     totalCount: checks.length,
-    criticalGaps,
+    solutions,
     scores: categoryScores,
     section,
     actionItems,
@@ -142,61 +168,54 @@ function computeCategoryScores(checks: AuditCheckResult[]): ScoreMetric[] {
     .map((g) => ({
       label: g.label,
       score: Math.round((g.earned / g.total) * 100),
-      description: `${g.label} for this specific content`,
+      description: `${g.label} for ${profileLabel(checks)}`,
     }));
+}
+
+function profileLabel(_checks: AuditCheckResult[]): string {
+  return "this product";
 }
 
 function buildAuditSection(
   profile: ContentProfile,
+  deep: DeepContent,
   context: AuditContext,
   score: number,
   passedChecks: AuditCheckResult[],
-  failedChecks: AuditCheckResult[],
-  criticalGaps: string[],
+  solutions: CopySolution[],
   passed: number,
   total: number
 ): AnalysisSection {
   const passedInsights = buildPassedInsights(profile, passedChecks);
-  const failedFixes = buildFailedFixes(profile, failedChecks);
+
+  const featureList = deep.features.length > 0
+    ? deep.features.slice(0, 5).join(" · ")
+    : profile.keyTopics.join(" · ") || "Not detected from page";
 
   return {
     id: "marketing-intelligence-audit",
-    title: `${profile.brandName} — Marketing Audit`,
+    title: `${profile.brandName} — Fixes & Ready-to-Use Copy`,
     category: "marketing",
     summary: buildContextualSummary(profile, score, passed, total, context),
     details: [
-      `About: ${profile.subject}`,
+      `Product: ${profile.subject}`,
       `Audience: ${profile.audience}`,
-      `Detected focus: ${profile.keyTopics.length > 0 ? profile.keyTopics.join(", ") : profile.offering}`,
-      profile.ctasFound.length > 0 ? `CTAs found: ${profile.ctasFound.join(" · ")}` : "No CTAs detected",
-      "",
-      "Priority fixes for this content:",
-      ...criticalGaps.map((g) => `→ ${g}`),
-      "",
-      ...(passedInsights.length > 0
-        ? ["What's working:", ...passedInsights.map((p) => `✓ ${p}`), ""]
-        : []),
-      ...(failedFixes.length > 0
-        ? ["Specific rewrites needed:", ...failedFixes.map((f) => `✗ ${f}`)]
-        : []),
+      `Features detected on page: ${featureList}`,
+      ...(deep.painSignals.length > 0 ? [`Pain points in copy: ${deep.painSignals[0]}`] : []),
+      ...(passedInsights.length > 0 ? ["", "Already working:", ...passedInsights.map((p) => `✓ ${p}`)] : []),
     ],
     metrics: [
       { label: "Benchmark Score", value: `${score}/100` },
-      { label: "Criteria Passed", value: `${passed}/${total}` },
+      { label: "Solutions", value: String(solutions.length) },
       { label: "Niche", value: profile.niche },
-      { label: "Hero / Opening", value: profile.heroLine.slice(0, 40) + (profile.heroLine.length > 40 ? "…" : "") },
+      { label: "Current Hero", value: profile.heroLine.slice(0, 45) + (profile.heroLine.length > 45 ? "…" : "") },
     ],
     highlights: [
       ...(score >= 70
-        ? [{ type: "positive" as const, text: `${profile.brandName}'s ${profile.keyTopics[0] ?? "messaging"} aligns with top performer patterns` }]
-        : [{ type: "negative" as const, text: `${profile.brandName}'s hero doesn't yet sell a specific outcome to ${profile.audience}` }]),
-      ...(GENERIC_OFFER_PHRASES.some((p) => p.test(profile.heroLine + profile.offering))
-        ? [{ type: "negative" as const, text: `Generic offer language detected — sharpen for ${profile.niche}` }]
-        : []),
-      ...(passedChecks.some((c) => c.id === "proof_volume")
-        ? [{ type: "positive" as const, text: `Proof elements present — add ${profile.audience}-specific results` }]
-        : [{ type: "negative" as const, text: `No proof volume for ${profile.brandName} — add client numbers or case results` }]),
+        ? [{ type: "positive" as const, text: `${profile.brandName} has solid foundations — use the copy below to optimise conversion` }]
+        : [{ type: "negative" as const, text: `${profile.brandName} needs sharper offer copy — paste the solutions below directly into your site` }]),
     ],
+    solutions,
   };
 }
 
@@ -204,9 +223,6 @@ export function enrichReportWithAudit(
   report: AnalysisReport,
   audit: MarketingAuditResult
 ): AnalysisReport {
-  const existingActions = new Set(report.actionItems.map((a) => a.action));
-  const newActions = audit.actionItems.filter((a) => !existingActions.has(a.action));
-
   const mergedScores = [...report.scores];
   for (const score of audit.scores) {
     if (!mergedScores.some((s) => s.label === score.label)) {
@@ -220,11 +236,6 @@ export function enrichReportWithAudit(
     report.overallScore * existingWeight + audit.overallScore * marketingScoreWeight
   );
 
-  const contextualActionItems = [
-    ...newActions,
-    ...report.actionItems.filter((a) => !newActions.some((n) => n.action === a.action)),
-  ].slice(0, 10);
-
   return {
     ...report,
     overallScore,
@@ -233,7 +244,11 @@ export function enrichReportWithAudit(
       ...report.sections.filter((s) => s.id !== "marketing-intelligence-audit"),
       audit.section,
     ],
-    actionItems: contextualActionItems,
-    subtitle: `${audit.profile.brandName} · ${audit.profile.niche} · Benchmark ${audit.overallScore}/100`,
+    solutions: audit.solutions,
+    actionItems: audit.solutions.map((s) => ({
+      priority: s.priority,
+      action: `${s.label} (${s.placement}): ${s.problem}`,
+    })).slice(0, 8),
+    subtitle: `${audit.profile.brandName} · ${audit.solutions.length} ready-to-use fixes`,
   };
 }

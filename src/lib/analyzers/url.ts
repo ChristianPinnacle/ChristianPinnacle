@@ -65,6 +65,11 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
   const hasHttps = finalUrl.startsWith("https://");
   const socialLinks = detectSocialLinks(links);
   const ctaTexts = detectCTAs($);
+  const listItems = $("li")
+    .map((_, el) => $(el).text().trim())
+    .get()
+    .filter((t) => t.length > 8 && t.length < 120)
+    .slice(0, 20);
   const internalLinks = links.filter((l) => isInternalLink(l.href, finalUrl)).length;
   const externalLinks = links.length - internalLinks;
 
@@ -242,6 +247,7 @@ export async function analyzeUrl(input: string): Promise<AnalysisReport> {
     description,
     headings: headings.map((h) => h.text),
     ctas: ctaTexts,
+    listItems,
   });
   return enrichReportWithAudit(baseReport, audit);
 }

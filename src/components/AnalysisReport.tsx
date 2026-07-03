@@ -9,8 +9,9 @@ import {
   Zap,
   Clock,
   BookOpen,
+  Copy,
 } from "lucide-react";
-import type { AnalysisReport } from "@/lib/types";
+import type { AnalysisReport, CopySolution } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { cn, scoreColor, scoreBarColor } from "@/lib/utils";
 import { useState } from "react";
@@ -86,6 +87,19 @@ export function AnalysisReportView({ report }: AnalysisReportViewProps) {
               </div>
               <p className="mt-2 text-xs text-slate-500 leading-relaxed">{score.description}</p>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Ready-to-use copy solutions */}
+      {report.solutions && report.solutions.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Copy className="w-5 h-5 text-violet-400" />
+            <h3 className="text-lg font-semibold text-white">Ready-to-Use Copy — Paste Directly</h3>
+          </div>
+          {report.solutions.map((solution, i) => (
+            <SolutionCard key={i} solution={solution} />
           ))}
         </div>
       )}
@@ -197,6 +211,14 @@ export function AnalysisReportView({ report }: AnalysisReportViewProps) {
                     </div>
                   )}
 
+                  {section.solutions && section.solutions.length > 0 && (
+                    <div className="space-y-3">
+                      {section.solutions.map((solution, i) => (
+                        <SolutionCard key={i} solution={solution} compact />
+                      ))}
+                    </div>
+                  )}
+
                   <ul className="space-y-2">
                     {section.details.map((detail, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-slate-400 leading-relaxed">
@@ -210,6 +232,30 @@ export function AnalysisReportView({ report }: AnalysisReportViewProps) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function SolutionCard({ solution, compact = false }: { solution: CopySolution; compact?: boolean }) {
+  const priorityStyle = PRIORITY_STYLES[solution.priority];
+
+  return (
+    <div className={cn("rounded-xl border p-4", priorityStyle, compact ? "text-sm" : "")}>
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider opacity-70">
+            {solution.priority} · {solution.label}
+          </span>
+          <p className="text-sm mt-1 opacity-90">{solution.problem}</p>
+          <p className="text-xs mt-1 opacity-60">Where: {solution.placement}</p>
+        </div>
+      </div>
+      <div className="mt-3 p-3 rounded-lg bg-black/30 border border-white/10">
+        <p className="text-xs text-violet-300 mb-2 font-medium">Copy & paste this:</p>
+        <pre className="text-sm text-slate-100 whitespace-pre-wrap font-sans leading-relaxed">
+          {solution.copy}
+        </pre>
       </div>
     </div>
   );

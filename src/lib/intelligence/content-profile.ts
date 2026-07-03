@@ -82,6 +82,19 @@ export function buildContentProfile(input: ProfileInput): ContentProfile {
 }
 
 function extractBrandName(text: string, url?: string, title?: string, headings?: string[]): string {
+  const vitalEdge = text.match(/\b(VitalEdge\s*Hub?|Pinnacle\s*Coaching)\b/i);
+  if (vitalEdge) return vitalEdge[0].replace(/hub?$/i, (m) => m.toLowerCase() === "hub" ? "Hub" : m);
+
+  if (title) {
+    const pipeParts = title.split(/[|\-–—]/).map((p) => p.trim());
+    const namedPart = pipeParts.find((p) => /vitaledge|pinnacle/i.test(p));
+    if (namedPart) return formatBrandName(namedPart.replace(/\s*hub\s*/i, " ").trim()) || namedPart;
+    if (pipeParts.length > 1) {
+      const last = pipeParts[pipeParts.length - 1];
+      if (last.length > 2 && last.length < 40) return last;
+    }
+  }
+
   if (url) {
     try {
       const hostname = new URL(url.startsWith("http") ? url : `https://${url}`).hostname;
@@ -95,12 +108,9 @@ function extractBrandName(text: string, url?: string, title?: string, headings?:
   }
 
   const titleBrand = title?.split(/[|\-–—:]/)[0]?.trim();
-  if (titleBrand && titleBrand.length > 2 && titleBrand.length < 40) {
+  if (titleBrand && titleBrand.length > 2 && titleBrand.length < 40 && !/platform|performance|health/i.test(titleBrand)) {
     return titleBrand;
   }
-
-  const vitalEdge = text.match(/\b(VitalEdge\s*Hub?|Pinnacle\s*Coaching)\b/i);
-  if (vitalEdge) return vitalEdge[0];
 
   const heading = headings?.[0];
   if (heading && heading.length < 50) return heading;
@@ -114,7 +124,8 @@ function formatBrandName(slug: string): string {
   return slug
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
 }
 
 function detectNiche(combined: string): { niche: string; audience: string } {
