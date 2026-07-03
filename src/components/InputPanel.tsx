@@ -23,6 +23,13 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     hint: "We'll automatically detect what you're analyzing",
   },
   {
+    id: "instagram_profile",
+    label: "Instagram",
+    icon: UserRound,
+    placeholder: "instagram.com/username or @username | paste bio here",
+    hint: "Bio audit, DM funnel, Highlights plan — paste bio after | if fetch is blocked",
+  },
+  {
     id: "url",
     label: "Website",
     icon: Globe,
@@ -35,13 +42,6 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     icon: MessageSquare,
     placeholder: "Paste your post copy or social media URL…",
     hint: "Get engagement, hashtag, and platform-specific tips",
-  },
-  {
-    id: "instagram_profile",
-    label: "Instagram Profile",
-    icon: UserRound,
-    placeholder: "instagram.com/username or @username | paste bio here",
-    hint: "Bio audit, DM funnel, Highlights plan — paste bio after | if fetch is blocked",
   },
   {
     id: "app",
@@ -95,17 +95,18 @@ export function InputPanel({ onAnalyze, isLoading }: InputPanelProps) {
 
   return (
     <div className="w-full">
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
         {INPUT_TYPES.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => setType(id)}
             className={cn(
-              "inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
+              "shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all",
               type === id
                 ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
-                : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200 border border-white/10"
+                : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200 border border-white/10",
+              id === "instagram_profile" && type !== id && "border-pink-500/30 text-pink-300/90"
             )}
           >
             <Icon className="w-4 h-4" />
