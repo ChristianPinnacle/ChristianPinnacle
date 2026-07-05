@@ -26,8 +26,8 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     id: "instagram_profile",
     label: "Instagram",
     icon: UserRound,
-    placeholder: "instagram.com/username  (then paste bio on next line)",
-    hint: "Line 1: URL or @handle · Line 2+: paste your bio from Instagram (required for full audit)",
+    placeholder: "instagram.com/username or @username",
+    hint: "Reads bio, followers, link, and stats directly from Instagram — just paste the profile URL",
   },
   {
     id: "url",

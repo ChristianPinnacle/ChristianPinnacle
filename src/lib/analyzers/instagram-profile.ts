@@ -1,4 +1,5 @@
 import { decodeHtmlEntities, fetchWithTimeout } from "@/lib/utils";
+import { fetchInstagramViaWebApi } from "@/lib/analyzers/instagram-api";
 
 export interface ParsedInstagramInput {
   username: string;
@@ -115,33 +116,23 @@ export async function fetchInstagramProfile(parsed: ParsedInstagramInput): Promi
     isVerified: false,
     isBusiness: false,
     profilePicUrl: "",
-    fetchStatus: parsed.bioOverride ? "partial" : "blocked",
-    fetchNote: parsed.bioOverride
-      ? "Bio pasted from your input — full analysis ready."
-      : "Instagram hides bios from automated requests. Paste your bio below the URL (new line or after |).",
+    fetchStatus: "blocked",
+    fetchNote: "Fetching profile from Instagram…",
   };
 
-  const endpoints = [
-    parsed.profileUrl,
-    `https://www.instagram.com/${parsed.username}/embed/`,
-    `${parsed.profileUrl}?__a=1&__d=dis`,
-  ];
-
+  // Primary: Instagram's own web_profile_info API (same endpoint the website uses)
   let bestExtract: Partial<InstagramProfileData> = {};
+  try {
+    const apiData = await fetchInstagramViaWebApi(parsed.username);
+    if (apiData) bestExtract = apiData;
+  } catch {
+    // fall through to HTML scraping
+  }
 
-  for (const endpoint of endpoints) {
-    try {
-      const { html, status } = await fetchWithTimeout(endpoint, 12000, BROWSER_HEADERS);
-      if (status >= 400 || html.length < 100) continue;
-      if (/accounts\/login/i.test(html) && !/"biography"/.test(html)) continue;
-
-      const extracted = extractFromHtml(html, parsed.username);
-      bestExtract = mergeExtract(bestExtract, extracted);
-
-      if (extracted.biography || hasUsefulStats(extracted)) break;
-    } catch {
-      continue;
-    }
+  // Fallback: scrape public HTML / embed metadata
+  if (!bestExtract.biography) {
+    const htmlExtract = await fetchFromHtmlEndpoints(parsed.username);
+    bestExtract = mergeExtract(bestExtract, htmlExtract);
   }
 
   const biography = parsed.bioOverride || bestExtract.biography || "";
@@ -154,22 +145,22 @@ export async function fetchInstagramProfile(parsed: ParsedInstagramInput): Promi
   const hasStats = hasUsefulStats(bestExtract);
 
   let fetchStatus: InstagramProfileData["fetchStatus"] = "blocked";
-  let fetchNote = base.fetchNote;
+  let fetchNote = "Could not load profile from Instagram. Check the username or try again in a minute.";
 
   if (hasBio && hasStats) {
     fetchStatus = "full";
     fetchNote = parsed.bioOverride
-      ? "Bio from your input + public stats from Instagram."
-      : "Profile bio and stats extracted from public metadata.";
+      ? "Bio from your input + stats from Instagram."
+      : "Full profile loaded — bio, stats, and link from Instagram.";
   } else if (hasBio) {
     fetchStatus = "partial";
     fetchNote = parsed.bioOverride
-      ? "Bio from your input — Instagram did not share follower stats."
-      : "Bio extracted — follower stats unavailable.";
+      ? "Bio from your input — follower stats unavailable."
+      : "Bio loaded from Instagram — follower stats unavailable.";
   } else if (hasStats || displayName !== formatDisplayName(parsed.username)) {
     fetchStatus = "partial";
     fetchNote =
-      "Instagram shared your name/stats but NOT your bio (this is normal). Paste your bio on a new line below the URL and analyze again.";
+      "Partial data only — Instagram may be rate-limiting this request. Wait 60 seconds and try again.";
   }
 
   return {
@@ -180,6 +171,34 @@ export async function fetchInstagramProfile(parsed: ParsedInstagramInput): Promi
     fetchStatus,
     fetchNote,
   };
+}
+
+async function fetchFromHtmlEndpoints(username: string): Promise<Partial<InstagramProfileData>> {
+  const profileUrl = `https://www.instagram.com/${username}/`;
+  const endpoints = [
+    profileUrl,
+    `https://www.instagram.com/${username}/embed/`,
+    `${profileUrl}?__a=1&__d=dis`,
+  ];
+
+  let bestExtract: Partial<InstagramProfileData> = {};
+
+  for (const endpoint of endpoints) {
+    try {
+      const { html, status } = await fetchWithTimeout(endpoint, 12000, BROWSER_HEADERS);
+      if (status >= 400 || html.length < 100) continue;
+      if (/accounts\/login/i.test(html) && !/"biography"/.test(html)) continue;
+
+      const extracted = extractFromHtml(html, username);
+      bestExtract = mergeExtract(bestExtract, extracted);
+
+      if (extracted.biography) break;
+    } catch {
+      continue;
+    }
+  }
+
+  return bestExtract;
 }
 
 function mergeExtract(
