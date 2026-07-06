@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BarChart3, Shield, Zap, Layers, UserRound } from "lucide-react";
 import { InputPanel } from "@/components/InputPanel";
+import { InstagramForm } from "@/components/InstagramForm";
 import { AnalysisReportView } from "@/components/AnalysisReport";
 import type { AnalysisReport, InputType } from "@/lib/types";
 
@@ -38,8 +39,9 @@ export default function Home() {
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<InputType>("auto");
 
-  async function handleAnalyze(input: string, type: InputType) {
+  async function handleAnalyze(input: string, type: InputType = activeTab) {
     setIsLoading(true);
     setError(null);
 
@@ -69,8 +71,8 @@ export default function Home() {
     <main className="flex-1">
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950 pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:60px_60px] pointer-events-none" />
 
         <div className="relative max-w-4xl mx-auto px-6 pt-16 pb-12 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-6">
@@ -93,7 +95,17 @@ export default function Home() {
 
       {/* Input */}
       <section className="relative max-w-4xl mx-auto px-6 -mt-4 pb-8">
-        <InputPanel onAnalyze={handleAnalyze} isLoading={isLoading} />
+        <InputPanel
+          onAnalyze={handleAnalyze}
+          isLoading={isLoading}
+          activeTab={activeTab}
+          onTabChange={(t) => { setActiveTab(t); setReport(null); setError(null); }}
+        />
+        {activeTab === "instagram_profile" && (
+          <div className="mt-4">
+            <InstagramForm onAnalyze={(input) => handleAnalyze(input, "instagram_profile")} isLoading={isLoading} />
+          </div>
+        )}
         {error && (
           <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
             {error}
