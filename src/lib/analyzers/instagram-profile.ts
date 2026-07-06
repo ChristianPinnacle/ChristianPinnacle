@@ -1,5 +1,4 @@
-import { decodeHtmlEntities, fetchWithTimeout } from "@/lib/utils";
-import { fetchInstagramViaWebApi } from "@/lib/analyzers/instagram-api";
+import { fetchWithTimeout } from "@/lib/utils";
 
 export interface ParsedInstagramInput {
   username: string;
@@ -13,36 +12,11 @@ const RESERVED_PATHS = new Set([
   "about", "legal", "privacy", "terms", "api", "developer", "nametag",
 ]);
 
-const BROWSER_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9",
-};
-
-/** Profile URL or @handle, optional bio after |, —, or on following lines */
+/** Profile URL or @handle, optional bio after | or — */
 export function parseInstagramInput(input: string): ParsedInstagramInput | null {
   const trimmed = input.trim();
-  if (!trimmed) return null;
 
-  const lines = trimmed.split(/\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length > 1) {
-    const first = parseInstagramSingleLine(lines[0]);
-    if (first) {
-      const extraBio = lines.slice(1).join("\n");
-      return {
-        ...first,
-        bioOverride: first.bioOverride ? `${first.bioOverride}\n${extraBio}` : extraBio,
-      };
-    }
-  }
-
-  return parseInstagramSingleLine(trimmed);
-}
-
-function parseInstagramSingleLine(input: string): ParsedInstagramInput | null {
-  const trimmed = input.trim();
-
+  // @username with optional bio
   const atMatch = trimmed.match(/^@([a-zA-Z0-9._]{1,30})(?:\s*[|—–-]\s*(.+))?$/);
   if (atMatch) {
     const username = atMatch[1].toLowerCase();
@@ -53,6 +27,7 @@ function parseInstagramSingleLine(input: string): ParsedInstagramInput | null {
     };
   }
 
+  // URL with optional bio appended
   let urlPart = trimmed;
   let bioOverride: string | undefined;
   const bioSplit = trimmed.match(/^(.+?instagram\.com\/[^\s|—–-]+)\s*[|—–-]\s*(.+)$/i);
@@ -117,144 +92,73 @@ export async function fetchInstagramProfile(parsed: ParsedInstagramInput): Promi
     isBusiness: false,
     profilePicUrl: "",
     fetchStatus: "blocked",
-    fetchNote: "Fetching profile from Instagram…",
+    fetchNote: "",
   };
 
-  // Primary: Instagram's own web_profile_info API (same endpoint the website uses)
-  let bestExtract: Partial<InstagramProfileData> = {};
-  try {
-    const apiData = await fetchInstagramViaWebApi(parsed.username);
-    if (apiData) bestExtract = apiData;
-  } catch {
-    // fall through to HTML scraping
+  if (parsed.bioOverride) {
+    base.fetchStatus = "partial";
+    base.fetchNote = "Bio provided in input — add stats after | for deeper analysis: followers, link, etc.";
   }
 
-  // Fallback: scrape public HTML / embed metadata
-  if (!bestExtract.biography) {
-    const htmlExtract = await fetchFromHtmlEndpoints(parsed.username);
-    bestExtract = mergeExtract(bestExtract, htmlExtract);
-  }
-
-  const biography = parsed.bioOverride || bestExtract.biography || "";
-  const displayName = cleanInstagramDisplayName(
-    bestExtract.displayName ?? base.displayName,
-    parsed.username
-  );
-
-  const hasBio = biography.length > 0;
-  const hasStats = hasUsefulStats(bestExtract);
-
-  let fetchStatus: InstagramProfileData["fetchStatus"] = "blocked";
-  let fetchNote = "Could not load profile from Instagram. Check the username or try again in a minute.";
-
-  if (hasBio && hasStats) {
-    fetchStatus = "full";
-    fetchNote = parsed.bioOverride
-      ? "Bio from your input + stats from Instagram."
-      : "Full profile loaded — bio, stats, and link from Instagram.";
-  } else if (hasBio) {
-    fetchStatus = "partial";
-    fetchNote = parsed.bioOverride
-      ? "Bio from your input — follower stats unavailable."
-      : "Bio loaded from Instagram — follower stats unavailable.";
-  } else if (hasStats || displayName !== formatDisplayName(parsed.username)) {
-    fetchStatus = "partial";
-    fetchNote =
-      "Partial data only — Instagram may be rate-limiting this request. Wait 60 seconds and try again.";
-  }
-
-  return {
-    ...base,
-    ...bestExtract,
-    displayName,
-    biography,
-    fetchStatus,
-    fetchNote,
-  };
-}
-
-async function fetchFromHtmlEndpoints(username: string): Promise<Partial<InstagramProfileData>> {
-  const profileUrl = `https://www.instagram.com/${username}/`;
   const endpoints = [
-    profileUrl,
-    `https://www.instagram.com/${username}/embed/`,
-    `${profileUrl}?__a=1&__d=dis`,
+    parsed.profileUrl,
+    `${parsed.profileUrl}?__a=1&__d=dis`,
+    `https://www.instagram.com/${parsed.username}/embed/`,
   ];
-
-  let bestExtract: Partial<InstagramProfileData> = {};
 
   for (const endpoint of endpoints) {
     try {
-      const { html, status } = await fetchWithTimeout(endpoint, 12000, BROWSER_HEADERS);
+      const { html, status } = await fetchWithTimeout(endpoint, 12000);
       if (status >= 400 || html.length < 100) continue;
-      if (/accounts\/login/i.test(html) && !/"biography"/.test(html)) continue;
 
-      const extracted = extractFromHtml(html, username);
-      bestExtract = mergeExtract(bestExtract, extracted);
-
-      if (extracted.biography) break;
+      const extracted = extractFromHtml(html, parsed.username);
+      if (extracted.biography || extracted.displayName !== formatDisplayName(parsed.username)) {
+        return {
+          ...base,
+          ...extracted,
+          biography: parsed.bioOverride || extracted.biography || base.biography,
+          fetchStatus: extracted.biography ? "full" : "partial",
+          fetchNote: extracted.biography
+            ? "Profile data extracted from public page metadata."
+            : "Limited data — paste your bio after the URL separated by | for a full audit.",
+        };
+      }
     } catch {
       continue;
     }
   }
 
-  return bestExtract;
-}
+  if (!parsed.bioOverride) {
+    base.fetchNote =
+      "Instagram blocked automated fetch. Paste your bio after the URL: instagram.com/username | Your bio text here";
+  }
 
-function mergeExtract(
-  a: Partial<InstagramProfileData>,
-  b: Partial<InstagramProfileData>
-): Partial<InstagramProfileData> {
-  return {
-    displayName: b.displayName || a.displayName,
-    biography: b.biography || a.biography,
-    externalUrl: b.externalUrl || a.externalUrl,
-    followers: b.followers ?? a.followers,
-    following: b.following ?? a.following,
-    posts: b.posts ?? a.posts,
-    profilePicUrl: b.profilePicUrl || a.profilePicUrl,
-    isVerified: b.isVerified ?? a.isVerified,
-    isBusiness: b.isBusiness ?? a.isBusiness,
-  };
-}
-
-function hasUsefulStats(data: Partial<InstagramProfileData>): boolean {
-  return data.followers != null || data.posts != null;
+  return base;
 }
 
 function extractFromHtml(html: string, username: string): Partial<InstagramProfileData> {
   const result: Partial<InstagramProfileData> = {};
 
-  const rawTitle =
-    extractMeta(html, "og:title") ||
-    extractMeta(html, "twitter:title") ||
-    extractHtmlTitle(html) ||
-    "";
-
-  if (rawTitle) {
-    result.displayName = cleanInstagramDisplayName(rawTitle, username);
-  }
+  // Open Graph
+  result.displayName = extractMeta(html, "og:title")?.replace(/ \(@.*\).*$/i, "").replace(/ on Instagram.*$/i, "").trim()
+    || extractMeta(html, "twitter:title")?.replace(/ \(@.*\).*$/i, "").trim()
+    || formatDisplayName(username);
 
   const ogDesc = extractMeta(html, "og:description") || extractMeta(html, "description") || "";
-  const parsedDesc = parseInstagramMetaDescription(ogDesc, username);
-  if (parsedDesc.biography) result.biography = parsedDesc.biography;
-  if (parsedDesc.followers != null) result.followers = parsedDesc.followers;
-  if (parsedDesc.following != null) result.following = parsedDesc.following;
-  if (parsedDesc.posts != null) result.posts = parsedDesc.posts;
+  const parsed = parseInstagramMetaDescription(ogDesc, username);
+  if (parsed.biography) result.biography = parsed.biography;
+  if (parsed.followers != null) result.followers = parsed.followers;
+  if (parsed.following != null) result.following = parsed.following;
+  if (parsed.posts != null) result.posts = parsed.posts;
 
   result.profilePicUrl = extractMeta(html, "og:image") || "";
 
+  // JSON embedded in script tags
   const jsonBio = html.match(/"biography"\s*:\s*"((?:\\.|[^"\\])*)"/)?.[1];
-  if (jsonBio) {
-    const decoded = decodeJsonString(jsonBio);
-    if (decoded.trim()) result.biography = decoded;
-  }
+  if (jsonBio) result.biography = decodeJsonString(jsonBio);
 
   const jsonName = html.match(/"full_name"\s*:\s*"((?:\\.|[^"\\])*)"/)?.[1];
-  if (jsonName) {
-    const decoded = decodeJsonString(jsonName);
-    if (decoded.trim()) result.displayName = cleanInstagramDisplayName(decoded, username);
-  }
+  if (jsonName) result.displayName = decodeJsonString(jsonName);
 
   const followerMatch = html.match(/"edge_followed_by"\s*:\s*\{\s*"count"\s*:\s*(\d+)/);
   if (followerMatch) result.followers = parseInt(followerMatch[1], 10);
@@ -269,39 +173,9 @@ function extractFromHtml(html: string, username: string): Partial<InstagramProfi
   if (externalMatch) result.externalUrl = decodeJsonString(externalMatch);
 
   result.isVerified = /"is_verified"\s*:\s*true/.test(html);
-  result.isBusiness =
-    /"is_business_account"\s*:\s*true/.test(html) ||
-    /"is_professional_account"\s*:\s*true/.test(html);
+  result.isBusiness = /"is_business_account"\s*:\s*true/.test(html) || /"is_professional_account"\s*:\s*true/.test(html);
 
   return result;
-}
-
-export function cleanInstagramDisplayName(raw: string, username: string): string {
-  let name = decodeHtmlEntities(raw).trim();
-
-  name = name.replace(/\s*\(@[^)]+\).*/i, "");
-  name = name.replace(/\s*[•·|]\s*Instagram photos and videos.*$/i, "");
-  name = name.replace(/\s+on Instagram.*$/i, "");
-  name = name.replace(/\s*[\u2022\u00b7•]\s*Instagram.*$/i, "");
-  name = name.replace(/\s*-\s*Instagram.*$/i, "");
-  name = name.trim();
-
-  if (!name || /^instagram$/i.test(name) || /instagram photos and videos/i.test(name)) {
-    return formatDisplayName(username);
-  }
-
-  if (name.length > 50) {
-    const pipe = name.indexOf("|");
-    if (pipe > 0 && pipe < 40) name = name.slice(0, pipe).trim();
-    else name = name.slice(0, 40).trim();
-  }
-
-  return name;
-}
-
-function extractHtmlTitle(html: string): string | null {
-  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  return match?.[1] ? decodeHtmlEntities(match[1].trim()) : null;
 }
 
 function extractMeta(html: string, property: string): string | null {
@@ -320,6 +194,7 @@ function extractMeta(html: string, property: string): string | null {
 function parseInstagramMetaDescription(desc: string, username: string): Partial<InstagramProfileData> {
   if (!desc) return {};
 
+  // "1,234 Followers, 567 Following, 89 Posts - See Instagram photos and videos from Name (@user)"
   const statsMatch = desc.match(
     /([\d,.]+[KkMm]?)\s+Followers,\s*([\d,.]+[KkMm]?)\s+Following,\s*([\d,.]+[KkMm]?)\s+Posts/i
   );
@@ -338,12 +213,7 @@ function parseInstagramMetaDescription(desc: string, username: string): Partial<
     .replace(new RegExp(`\\(@${username}\\)`, "i"), "")
     .trim();
 
-  if (
-    bioFromDesc &&
-    bioFromDesc.length > 3 &&
-    !/^see instagram/i.test(bioFromDesc) &&
-    !/^\d+[KkMm]?\s+Followers/i.test(bioFromDesc)
-  ) {
+  if (bioFromDesc && bioFromDesc.length > 3 && !/^see instagram/i.test(bioFromDesc)) {
     result.biography = bioFromDesc;
   }
 
@@ -362,7 +232,16 @@ function formatDisplayName(username: string): string {
 }
 
 function decodeJsonString(s: string): string {
-  return decodeHtmlEntities(s.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\"));
+  return s.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 export function formatFollowerCount(n: number | null): string {
@@ -370,9 +249,4 @@ export function formatFollowerCount(n: number | null): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return n.toLocaleString();
-}
-
-export function profileBrandName(profile: InstagramProfileData): string {
-  const name = profile.displayName.split("|")[0].trim();
-  return name || formatDisplayName(profile.username);
 }

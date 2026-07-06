@@ -26,8 +26,8 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     id: "instagram_profile",
     label: "Instagram",
     icon: UserRound,
-    placeholder: "",
-    hint: "Bio audit, DM funnel, Highlights, and 2026 algorithm strategy",
+    placeholder: "instagram.com/username or @username | paste bio here",
+    hint: "Bio audit, DM funnel, Highlights plan — paste bio after | if fetch is blocked",
   },
   {
     id: "url",
@@ -62,32 +62,22 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
 interface InputPanelProps {
   onAnalyze: (input: string, type: InputType) => void;
   isLoading: boolean;
-  activeTab?: InputType;
-  onTabChange?: (type: InputType) => void;
 }
 
-export function InputPanel({ onAnalyze, isLoading, activeTab, onTabChange }: InputPanelProps) {
+export function InputPanel({ onAnalyze, isLoading }: InputPanelProps) {
   const [input, setInput] = useState("");
-  const [internalType, setInternalType] = useState<InputType>("auto");
+  const [type, setType] = useState<InputType>("auto");
 
-  const type = activeTab ?? internalType;
-  const setType = (t: InputType) => {
-    setInternalType(t);
-    onTabChange?.(t);
-    setInput("");
-  };
-
-  const isInstagram = type === "instagram_profile";
   const selected = INPUT_TYPES.find((t) => t.id === type) ?? INPUT_TYPES[0];
-  const isMultiline = type === "business" || type === "social";
-  const canSubmit = !isInstagram && input.trim().length > 0 && !isLoading;
+  const canSubmit = input.trim().length > 0 && !isLoading;
+  const isMultiline = type === "business" || type === "social" || type === "instagram_profile";
 
   const submit = useCallback(() => {
     const trimmed = input.trim();
-    if (trimmed && !isLoading && !isInstagram) {
+    if (trimmed && !isLoading) {
       onAnalyze(trimmed, type);
     }
-  }, [input, isLoading, onAnalyze, type, isInstagram]);
+  }, [input, isLoading, onAnalyze, type]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,8 +95,7 @@ export function InputPanel({ onAnalyze, isLoading, activeTab, onTabChange }: Inp
 
   return (
     <div className="w-full">
-      {/* Tab row */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
         {INPUT_TYPES.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -126,62 +115,59 @@ export function InputPanel({ onAnalyze, isLoading, activeTab, onTabChange }: Inp
         ))}
       </div>
 
-      {/* Input form — hidden when Instagram tab is active (handled by InstagramForm below) */}
-      {!isInstagram && (
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {isMultiline ? (
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={selected.placeholder}
-              rows={5}
-              className="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 resize-none text-base leading-relaxed backdrop-blur-sm"
-              disabled={isLoading}
-            />
-          ) : (
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={selected.placeholder}
-              className="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 text-base leading-relaxed backdrop-blur-sm"
-              disabled={isLoading}
-              autoComplete="url"
-            />
-          )}
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {isMultiline ? (
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={selected.placeholder}
+            rows={5}
+            className="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 resize-none text-base leading-relaxed backdrop-blur-sm"
+            disabled={isLoading}
+          />
+        ) : (
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={selected.placeholder}
+            className="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-white/10 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 text-base leading-relaxed backdrop-blur-sm"
+            disabled={isLoading}
+            autoComplete="url"
+          />
+        )}
 
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-slate-500">
-              {selected.hint}
-              {isMultiline && " · Ctrl+Enter to analyze"}
-            </p>
-            <button
-              type="submit"
-              disabled={!canSubmit}
-              className={cn(
-                "shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all",
-                canSubmit
-                  ? "bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/30 cursor-pointer"
-                  : "bg-slate-700 text-slate-500 cursor-not-allowed"
-              )}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing…
-                </>
-              ) : (
-                <>
-                  Analyze
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      )}
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-slate-500">
+            {selected.hint}
+            {isMultiline && " · Ctrl+Enter to analyze"}
+          </p>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className={cn(
+              "shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all",
+              canSubmit
+                ? "bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/30 cursor-pointer"
+                : "bg-slate-700 text-slate-500 cursor-not-allowed"
+            )}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                Analyze
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

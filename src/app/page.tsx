@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { BarChart3, Shield, Zap, Layers, UserRound } from "lucide-react";
 import { InputPanel } from "@/components/InputPanel";
-import { InstagramForm } from "@/components/InstagramForm";
 import { AnalysisReportView } from "@/components/AnalysisReport";
 import type { AnalysisReport, InputType } from "@/lib/types";
 
@@ -39,9 +38,8 @@ export default function Home() {
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<InputType>("auto");
 
-  async function handleAnalyze(input: string, type: InputType = activeTab) {
+  async function handleAnalyze(input: string, type: InputType) {
     setIsLoading(true);
     setError(null);
 
@@ -95,17 +93,7 @@ export default function Home() {
 
       {/* Input */}
       <section className="relative max-w-4xl mx-auto px-6 -mt-4 pb-8">
-        <InputPanel
-          onAnalyze={handleAnalyze}
-          isLoading={isLoading}
-          activeTab={activeTab}
-          onTabChange={(t) => { setActiveTab(t); setReport(null); setError(null); }}
-        />
-        {activeTab === "instagram_profile" && (
-          <div className="mt-4">
-            <InstagramForm onAnalyze={(input) => handleAnalyze(input, "instagram_profile")} isLoading={isLoading} />
-          </div>
-        )}
+        <InputPanel onAnalyze={handleAnalyze} isLoading={isLoading} />
         {error && (
           <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
             {error}
