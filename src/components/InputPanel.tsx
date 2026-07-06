@@ -26,8 +26,8 @@ const INPUT_TYPES: { id: InputType; label: string; icon: typeof Globe; placehold
     id: "instagram_profile",
     label: "Instagram",
     icon: UserRound,
-    placeholder: "instagram.com/username or @username | paste bio here",
-    hint: "Bio audit, DM funnel, Highlights plan — paste bio after | if fetch is blocked",
+    placeholder: "coach_christianwilson  (just the handle — no @ or URL needed)",
+    hint: "Pulls bio, followers, and recent posts automatically from Instagram",
   },
   {
     id: "url",
@@ -70,7 +70,7 @@ export function InputPanel({ onAnalyze, isLoading }: InputPanelProps) {
 
   const selected = INPUT_TYPES.find((t) => t.id === type) ?? INPUT_TYPES[0];
   const canSubmit = input.trim().length > 0 && !isLoading;
-  const isMultiline = type === "business" || type === "social" || type === "instagram_profile";
+  const isMultiline = type === "business" || type === "social";
 
   const submit = useCallback(() => {
     const trimmed = input.trim();

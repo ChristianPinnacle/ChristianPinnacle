@@ -5,6 +5,7 @@ import {
   fetchInstagramProfile,
   formatFollowerCount,
   type InstagramProfileData,
+  type InstagramPost,
 } from "@/lib/analyzers/instagram-profile";
 import { runMarketingAudit, enrichReportWithAudit } from "@/lib/intelligence/audit";
 
@@ -17,7 +18,6 @@ export async function analyzeInstagramProfile(input: string): Promise<AnalysisRe
   }
 
   const profile = await fetchInstagramProfile(parsed);
-  const auditText = buildAuditText(profile);
   const niche = detectProfileNiche(profile);
 
   const bioScore = scoreBio(profile);
@@ -25,77 +25,28 @@ export async function analyzeInstagramProfile(input: string): Promise<AnalysisRe
   const nicheScore = scoreNicheClarity(profile);
   const linkScore = scoreLinkStrategy(profile);
   const usernameScore = scoreUsername(profile.username);
-  const overallScore = Math.round((bioScore + ctaScore + nicheScore + linkScore + usernameScore) / 5);
+  const postScore = scorePostContent(profile.recentPosts);
+  const overallScore = Math.round(
+    (bioScore * 1.5 + ctaScore * 1.5 + nicheScore + linkScore + usernameScore + postScore) / 6.5
+  );
 
   const scores: ScoreMetric[] = [
     { label: "Bio & Offer", score: bioScore, description: "Clarity of bio and value proposition" },
     { label: "CTA & DM Funnel", score: ctaScore, description: "Comment-to-DM or clear next step in bio" },
     { label: "Niche Clarity", score: nicheScore, description: "Topic clarity for 2026 algorithm" },
     { label: "Link Strategy", score: linkScore, description: "Link in bio vs DM-first strategy" },
+    { label: "Post Content", score: postScore, description: "Hook quality, CTA usage, content mix" },
     { label: "Username", score: usernameScore, description: "Handle professionalism and searchability" },
   ];
 
   const solutions = generateProfileSolutions(profile, niche, { bioScore, ctaScore, linkScore });
 
   const sections: AnalysisSection[] = [
-    {
-      id: "overview",
-      title: `@${profile.username} — Profile Overview`,
-      category: "overview",
-      summary: `@${profile.username} (${profile.displayName}) — ${overallScore}/100 profile score. ${niche.label}. ${profile.fetchNote}`,
-      details: [
-        `Profile: ${profile.profileUrl}`,
-        `Display name: ${profile.displayName}`,
-        profile.biography
-          ? `Bio: "${profile.biography}"`
-          : "Bio: not detected — paste it after the URL: instagram.com/username | Your bio",
-        `Followers: ${formatFollowerCount(profile.followers)} · Following: ${formatFollowerCount(profile.following)} · Posts: ${profile.posts ?? "?"}`,
-        profile.externalUrl ? `Link in bio: ${profile.externalUrl}` : "No external link detected",
-        profile.isBusiness ? "Account: Business/Creator ✓" : "Account: Switch to Creator for insights + contact buttons",
-      ],
-      metrics: [
-        { label: "Followers", value: formatFollowerCount(profile.followers) },
-        { label: "Posts", value: profile.posts != null ? String(profile.posts) : "?" },
-        { label: "Bio Chars", value: `${profile.biography.length}/150` },
-        { label: "Data", value: profile.fetchStatus },
-      ],
-    },
-    {
-      id: "bio",
-      title: "Bio Analysis",
-      category: "content",
-      summary: bioScore >= 70
-        ? `@${profile.username}'s bio communicates value — sharpen the DM CTA next.`
-        : `@${profile.username}'s bio is the #1 fix — add outcome + DM keyword.`,
-      details: analyzeBioDetails(profile),
-      highlights: buildBioHighlights(profile, bioScore, ctaScore),
-    },
-    {
-      id: "engagement",
-      title: "Growth & Algorithm (2026)",
-      category: "engagement",
-      summary: getAlgorithmSummary(profile, niche),
-      details: [
-        `Niche: ${niche.label} — keep 70%+ of posts in this topic`,
-        "Saves + DM shares beat likes for reach in 2026",
-        "Comment-to-DM: 12–25% conversion vs 1.5–3% link-in-bio",
-        "Reply to DMs within 5 minutes for max conversion",
-        profile.followers != null && profile.following != null && profile.following > 0
-          ? `Follow ratio: ${(profile.followers / profile.following).toFixed(1)}:1`
-          : "",
-      ].filter(Boolean),
-    },
-    {
-      id: "strategy",
-      title: "Profile Optimisation Plan",
-      category: "strategy",
-      summary: `For @${profile.username}: (1) Bio + DM keyword, (2) Highlights, (3) Pin 3 posts, (4) Content mix.`,
-      details: [
-        "Name field: add searchable keywords (e.g. '| Online Coach')",
-        "Highlights: Results · How it works · Free guide · FAQ · About",
-        "Pin 3: Best result · How to work with me · Top Reel with DM CTA",
-      ],
-    },
+    buildOverviewSection(profile, niche, overallScore),
+    buildBioSection(profile, bioScore, ctaScore),
+    buildPostsSection(profile, niche),
+    buildAlgorithmSection(profile, niche),
+    buildStrategySection(profile, niche),
   ];
 
   const baseReport: AnalysisReport = {
@@ -109,9 +60,16 @@ export async function analyzeInstagramProfile(input: string): Promise<AnalysisRe
     overallScore,
     scores,
     sections,
-    actionItems: solutions.map((s) => ({ priority: s.priority, action: `${s.label}: ${s.problem}` })),
+    actionItems: solutions.map(s => ({ priority: s.priority, action: `${s.label}: ${s.problem}` })),
     solutions,
   };
+
+  const auditText = [
+    profile.displayName,
+    profile.biography,
+    profile.externalUrl,
+    ...profile.recentPosts.map(p => p.caption),
+  ].join("\n");
 
   const audit = runMarketingAudit(auditText, "instagram_profile", {
     url: profile.profileUrl,
@@ -123,38 +81,241 @@ export async function analyzeInstagramProfile(input: string): Promise<AnalysisRe
   const enriched = enrichReportWithAudit(baseReport, audit);
   return {
     ...enriched,
-    solutions: dedupeSolutions([...solutions, ...(enriched.solutions ?? [])]).slice(0, 12),
+    solutions: dedupe([...solutions, ...(enriched.solutions ?? [])]).slice(0, 12),
   };
 }
 
-function dedupeSolutions(solutions: CopySolution[]): CopySolution[] {
-  const seen = new Set<string>();
-  return solutions.filter((s) => {
-    if (seen.has(s.label)) return false;
-    seen.add(s.label);
-    return true;
-  });
+// ---------------------------------------------------------------------------
+// Sections
+// ---------------------------------------------------------------------------
+
+function buildOverviewSection(
+  profile: InstagramProfileData,
+  niche: { label: string; keyword: string },
+  overallScore: number,
+): AnalysisSection {
+  return {
+    id: "overview",
+    title: `@${profile.username} — Profile Overview`,
+    category: "overview",
+    summary: `@${profile.username} (${profile.displayName}) — ${overallScore}/100. ${niche.label}. ${profile.fetchNote}`,
+    details: [
+      `Handle: @${profile.username}`,
+      `Display name: ${profile.displayName}`,
+      profile.biography ? `Bio: "${profile.biography}"` : "Bio: not loaded",
+      `Followers: ${formatFollowerCount(profile.followers)} · Following: ${formatFollowerCount(profile.following)} · Posts: ${profile.posts ?? "?"}`,
+      profile.externalUrl ? `Link in bio: ${profile.externalUrl}` : "No external link detected",
+      profile.isBusiness ? "Account type: Business/Creator ✓" : "Account type: Personal — switch to Creator for insights",
+      profile.recentPosts.length > 0
+        ? `Recent posts analysed: ${profile.recentPosts.length}`
+        : "Recent posts: unavailable",
+    ],
+    metrics: [
+      { label: "Followers", value: formatFollowerCount(profile.followers) },
+      { label: "Posts", value: profile.posts != null ? String(profile.posts) : "?" },
+      { label: "Bio chars", value: `${profile.biography.length}/150` },
+      { label: "Posts loaded", value: String(profile.recentPosts.length) },
+    ],
+  };
 }
 
-function buildAuditText(profile: InstagramProfileData): string {
-  return [profile.displayName, profile.biography, profile.externalUrl, profile.username].join("\n");
+function buildBioSection(
+  profile: InstagramProfileData,
+  bioScore: number,
+  ctaScore: number,
+): AnalysisSection {
+  const bio = profile.biography;
+  const details: string[] = bio
+    ? [
+        `Current bio (${bio.length}/150 chars): "${bio}"`,
+        `Line breaks: ${bio.split(/\n/).length} — aim for 3 short lines`,
+        bio.length > 150 ? "⚠ Over 150 chars — Instagram will truncate" : "Length is within limit ✓",
+        !/\b(DM|comment|message|👇|link)\b/i.test(bio)
+          ? "⚠ No CTA — add a DM keyword as the last line"
+          : "CTA detected ✓",
+        /link in bio/i.test(bio) && !/\b(DM|comment \w+)\b/i.test(bio)
+          ? "Only 'link in bio' — add comment-to-DM (converts 12–25% vs 1.5–3%)"
+          : "",
+      ].filter(Boolean)
+    : [
+        "Bio not loaded — Instagram may be rate-limiting.",
+        "Wait 60 seconds and retry, or append your bio: @handle | your bio text",
+      ];
+
+  return {
+    id: "bio",
+    title: "Bio Analysis",
+    category: "content",
+    summary: bioScore >= 70
+      ? `@${profile.username}'s bio communicates value — sharpen the DM CTA next.`
+      : `@${profile.username}'s bio is the #1 fix — add a specific outcome + DM keyword.`,
+    details,
+    highlights: [
+      bioScore >= 70
+        ? { type: "positive" as const, text: "Bio has value language" }
+        : { type: "negative" as const, text: "Bio needs a specific outcome (e.g. '12 weeks', 'busy adults')" },
+      ctaScore >= 70
+        ? { type: "positive" as const, text: "CTA present in bio ✓" }
+        : { type: "negative" as const, text: "No DM keyword — add 'Comment COACH below' as last bio line" },
+    ],
+  };
 }
 
-function detectProfileNiche(profile: InstagramProfileData): { label: string; keyword: string } {
-  const text = `${profile.biography} ${profile.displayName} ${profile.username}`.toLowerCase();
-  if (/\b(coach|coaching|trainer|online coach|fitness business)\b/.test(text)) {
-    return { label: "Fitness coach / trainer", keyword: "COACH" };
+function buildPostsSection(
+  profile: InstagramProfileData,
+  niche: { label: string; keyword: string },
+): AnalysisSection {
+  const posts = profile.recentPosts;
+
+  if (posts.length === 0) {
+    return {
+      id: "posts",
+      title: "Recent Posts",
+      category: "content",
+      summary: "No recent posts could be loaded from Instagram's API.",
+      details: [
+        "Instagram's API returns up to 12 recent posts.",
+        "If running from a cloud/shared IP, Instagram may block this request.",
+        "Run the app locally on your home network for full post analysis.",
+      ],
+    };
   }
-  if (/\b(nutrition|macro|diet|meal)\b/.test(text)) {
-    return { label: "Nutrition coaching", keyword: "MACROS" };
+
+  const reels = posts.filter(p => p.isVideo);
+  const images = posts.filter(p => !p.isVideo);
+  const withCTA = posts.filter(p => /\b(DM|comment|link in bio|👇|⬇️)\b/i.test(p.caption));
+  const withHook = posts.filter(p => hasStrongHook(p.caption));
+  const withHashtags = posts.filter(p => /#\w+/.test(p.caption));
+  const avgLikes = avg(posts.map(p => p.likes));
+  const avgComments = avg(posts.map(p => p.comments));
+
+  const postDetails: string[] = [
+    `Posts analysed: ${posts.length} most recent`,
+    `Content mix: ${reels.length} Reels / ${images.length} photos & carousels`,
+    `Posts with DM/CTA: ${withCTA.length}/${posts.length} — ${withCTA.length < posts.length * 0.6 ? "⚠ add CTA to more posts" : "✓ good"}`,
+    `Posts with strong hook: ${withHook.length}/${posts.length}`,
+    `Posts with hashtags: ${withHashtags.length}/${posts.length}`,
+    avgLikes != null ? `Avg likes: ${Math.round(avgLikes).toLocaleString()}` : "",
+    avgComments != null ? `Avg comments: ${Math.round(avgComments).toLocaleString()}` : "",
+    reels.length < images.length
+      ? `⚠ Only ${reels.length} Reels — 2026 algorithm rewards Reels 3–5× more than static posts`
+      : "Reels-heavy content mix ✓",
+  ].filter(Boolean);
+
+  // Top and bottom performing posts
+  const sorted = [...posts]
+    .filter(p => p.likes != null)
+    .sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
+
+  if (sorted.length > 0) {
+    const top = sorted[0];
+    postDetails.push(`Best post: ${top.likes?.toLocaleString()} likes — ${top.url}`);
+    if (top.caption) postDetails.push(`Caption: "${top.caption.slice(0, 100)}${top.caption.length > 100 ? "…" : ""}"`);
   }
-  if (/\b(PT|personal trainer|strength|hypertrophy|gym)\b/.test(text)) {
-    return { label: "Personal training", keyword: "TRAIN" };
+
+  // Hooks audit — show captions that are missing hooks
+  const noHook = posts.filter(p => p.caption && !hasStrongHook(p.caption)).slice(0, 3);
+  if (noHook.length > 0) {
+    postDetails.push("Posts missing scroll-stopping hook (first line):");
+    noHook.forEach(p => {
+      const first = p.caption.split("\n")[0].slice(0, 80);
+      postDetails.push(`  • "${first}…" — rewrite with mirror/myth-bust/POV hook`);
+    });
   }
-  if (/\b(agency|ads|marketing|leads)\b/.test(text)) {
-    return { label: "Marketing / agency", keyword: "LEADS" };
-  }
-  return { label: "Fitness / wellness", keyword: "READY" };
+
+  const highlights = [
+    withCTA.length >= posts.length * 0.7
+      ? { type: "positive" as const, text: `${withCTA.length}/${posts.length} posts have a CTA ✓` }
+      : { type: "negative" as const, text: `Only ${withCTA.length}/${posts.length} posts have a CTA — add "Comment ${niche.keyword}" to each` },
+    reels.length >= 2
+      ? { type: "positive" as const, text: `${reels.length} Reels in recent posts ✓` }
+      : { type: "negative" as const, text: "Low Reels count — Reels drive 3–5× more reach in 2026" },
+    withHook.length >= posts.length * 0.5
+      ? { type: "positive" as const, text: `${withHook.length}/${posts.length} posts have a strong opening hook ✓` }
+      : { type: "negative" as const, text: `${posts.length - withHook.length} posts lack a scroll-stopping first line` },
+  ];
+
+  return {
+    id: "posts",
+    title: `Recent Posts Audit (${posts.length} posts)`,
+    category: "content",
+    summary: `${reels.length} Reels, ${images.length} static. ${withCTA.length}/${posts.length} have a CTA. ${withHook.length}/${posts.length} have a strong hook.`,
+    details: postDetails,
+    highlights,
+  };
+}
+
+function buildAlgorithmSection(
+  profile: InstagramProfileData,
+  niche: { label: string },
+): AnalysisSection {
+  const posts = profile.recentPosts;
+  const reelRatio = posts.length > 0 ? posts.filter(p => p.isVideo).length / posts.length : 0;
+
+  return {
+    id: "engagement",
+    title: "Growth & Algorithm (2026)",
+    category: "engagement",
+    summary: getAlgorithmSummary(profile, niche),
+    details: [
+      `Niche: "${niche.label}" — keep 70%+ of posts in this topic`,
+      `Reels ratio: ${Math.round(reelRatio * 100)}% — target 50%+ for max reach`,
+      "Saves + DM shares beat likes for 2026 reach",
+      "Comment-to-DM converts 12–25% vs 1.5–3% for link-in-bio",
+      "Reply to DMs within 5 min — Instagram shows your account to more people",
+      "Post daily Stories: proof → tip → DM invite",
+      profile.followers != null && profile.following != null && profile.following > 0
+        ? `Follow ratio: ${(profile.followers / (profile.following || 1)).toFixed(1)}:1 — above 3:1 signals authority`
+        : "",
+    ].filter(Boolean),
+  };
+}
+
+function buildStrategySection(
+  profile: InstagramProfileData,
+  niche: { label: string; keyword: string },
+): AnalysisSection {
+  return {
+    id: "strategy",
+    title: "Profile Optimisation Plan",
+    category: "strategy",
+    summary: `For @${profile.username}: Bio → Posts → Highlights → DM system.`,
+    details: [
+      `Name field: add "| ${niche.label.split(" ")[0]} Coach" for search (e.g. "Chris | Fitness Coach")`,
+      "Highlights: RESULTS · HOW IT WORKS · FREE GUIDE · FAQ · ABOUT ME",
+      `Pin 3 posts: (1) Best client result with numbers  (2) 'Work with me' carousel  (3) Top Reel with "Comment ${niche.keyword}"`,
+      "Weekly target: 2 carousels + 2 Reels + daily Stories",
+      "Use ManyChat to auto-DM when someone comments your keyword",
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Scoring
+// ---------------------------------------------------------------------------
+
+function scorePostContent(posts: InstagramPost[]): number {
+  if (posts.length === 0) return 40; // neutral if no data
+  let score = 40;
+  const reels = posts.filter(p => p.isVideo).length;
+  const withCTA = posts.filter(p => /\b(DM|comment|link|👇|⬇️)\b/i.test(p.caption)).length;
+  const withHook = posts.filter(p => hasStrongHook(p.caption)).length;
+
+  score += Math.min(20, Math.round((reels / posts.length) * 20));
+  score += Math.min(25, Math.round((withCTA / posts.length) * 25));
+  score += Math.min(15, Math.round((withHook / posts.length) * 15));
+  return clamp(score, 0, 100);
+}
+
+function hasStrongHook(caption: string): boolean {
+  if (!caption) return false;
+  const first = caption.split("\n")[0];
+  return (
+    /\?/.test(first) ||
+    /\b(stop|mistake|secret|truth|nobody|most people|you've been|POV:|if you)\b/i.test(first) ||
+    /\b(\d+ (ways|tips|mistakes|reasons|things))\b/i.test(first) ||
+    /\b(dropped|lost|gained|in \d+ weeks?)\b/i.test(first)
+  );
 }
 
 function scoreBio(profile: InstagramProfileData): number {
@@ -164,7 +325,6 @@ function scoreBio(profile: InstagramProfileData): number {
   if (bio.length >= 50) score += 20;
   if (bio.length <= 150) score += 10;
   if (/\b(help|coach|transform|build|lose|gain|scale|online)\b/i.test(bio)) score += 15;
-  if (/\b(I|my|we)\b/i.test(bio)) score += 10;
   if (/\b(\d+|%|kg|lbs|weeks?|clients?)\b/i.test(bio)) score += 15;
   if (!/\b(online coaching|fitness journey|living my best)\b/i.test(bio)) score += 10;
   return clamp(score, 0, 100);
@@ -172,7 +332,7 @@ function scoreBio(profile: InstagramProfileData): number {
 
 function scoreBioCTA(bio: string): number {
   if (!bio) return 0;
-  if (/\b(DM me|comment|message me|link below|👇|⬇️)\b/i.test(bio)) return 90;
+  if (/\b(DM me|comment|message me|👇|⬇️)\b/i.test(bio)) return 90;
   if (/\b(book|apply|join|free|download|link in bio)\b/i.test(bio)) return 70;
   return 15;
 }
@@ -204,49 +364,40 @@ function scoreUsername(username: string): number {
   return clamp(score, 0, 100);
 }
 
-function analyzeBioDetails(profile: InstagramProfileData): string[] {
-  const bio = profile.biography;
-  if (!bio) {
-    return [`No bio detected for @${profile.username} — paste bio after URL: instagram.com/${profile.username} | Your bio text`];
-  }
-  const lines = [
-    `Current bio (${bio.length}/150 chars): "${bio}"`,
-    `Lines: ${bio.split(/\n/).length} — use line breaks every 1–2 sentences`,
-  ];
-  if (bio.length > 150) lines.push("⚠ Exceeds 150 characters — Instagram will truncate");
-  if (!/\b(DM|comment|message|👇|link)\b/i.test(bio)) lines.push("Missing CTA — add DM keyword");
-  if (/link in bio/i.test(bio) && !/\b(DM|comment \w+)\b/i.test(bio)) {
-    lines.push("Only 'link in bio' — add comment-to-DM (12–25% vs 1.5–3% for coaches)");
-  }
-  return lines;
+// ---------------------------------------------------------------------------
+// Niche detection
+// ---------------------------------------------------------------------------
+
+function detectProfileNiche(profile: InstagramProfileData): { label: string; keyword: string } {
+  const text = [
+    profile.biography,
+    profile.displayName,
+    profile.username,
+    ...profile.recentPosts.map(p => p.caption),
+  ].join(" ").toLowerCase();
+
+  if (/\b(coach|coaching|trainer|online coach)\b/.test(text))
+    return { label: "Fitness coach / trainer", keyword: "COACH" };
+  if (/\b(nutrition|macro|diet|meal prep)\b/.test(text))
+    return { label: "Nutrition coaching", keyword: "MACROS" };
+  if (/\b(PT|personal trainer|strength|hypertrophy|gym)\b/.test(text))
+    return { label: "Personal training", keyword: "TRAIN" };
+  if (/\b(agency|ads|marketing|leads|funnels)\b/.test(text))
+    return { label: "Marketing / agency", keyword: "LEADS" };
+  return { label: "Fitness / wellness", keyword: "READY" };
 }
 
-function buildBioHighlights(profile: InstagramProfileData, bioScore: number, ctaScore: number) {
-  return [
-    bioScore >= 70
-      ? { type: "positive" as const, text: "Bio has value language" }
-      : { type: "negative" as const, text: `@${profile.username}'s bio needs a specific outcome` },
-    ctaScore >= 70
-      ? { type: "positive" as const, text: "CTA in bio ✓" }
-      : { type: "negative" as const, text: "No DM keyword — biggest profile conversion gap" },
-  ];
-}
-
-function getAlgorithmSummary(profile: InstagramProfileData, niche: { label: string }): string {
-  const posts = profile.posts ?? 0;
-  if (posts < 9) {
-    return `@${profile.username}: ${posts} posts — grid looks thin. Post 9–12 before scaling Reels. Topic: ${niche.label}.`;
-  }
-  return `@${profile.username}: Stay focused on "${niche.label}" — saves + DM shares drive reach in 2026.`;
-}
+// ---------------------------------------------------------------------------
+// Solutions
+// ---------------------------------------------------------------------------
 
 function generateProfileSolutions(
   profile: InstagramProfileData,
   niche: { label: string; keyword: string },
-  scores: { bioScore: number; ctaScore: number; linkScore: number }
+  scores: { bioScore: number; ctaScore: number; linkScore: number },
 ): CopySolution[] {
   const solutions: CopySolution[] = [];
-  const brand = profile.displayName;
+  const brand = profile.displayName.split("|")[0].trim();
   const keyword = niche.keyword;
   const isCoach = /coach|trainer/i.test(niche.label);
 
@@ -255,83 +406,127 @@ function generateProfileSolutions(
       label: "Bio rewrite",
       priority: "high",
       problem: profile.biography
-        ? `Bio "${profile.biography.slice(0, 55)}…" missing outcome + DM trigger.`
-        : `@${profile.username} — no bio detected. Use template below.`,
+        ? `Bio "${profile.biography.slice(0, 55)}${profile.biography.length > 55 ? "…" : ""}" is missing a specific outcome + DM trigger.`
+        : `@${profile.username} bio not loaded — use the template below.`,
       placement: "Instagram → Edit profile → Bio",
       copy: isCoach
-        ? `I help online coaches & PT clients hit their goals ⬇️
-
-🏋️ Custom programs · Macro coaching · Weekly check-ins
-
-👇 Comment "${keyword}" for my free starter plan`
-        : `Fat loss & muscle building for busy adults 🎯
-
-Custom nutrition + training that fits your life
-
-👇 DM "${keyword}" for my free 5-day plan`,
+        ? `I help ${niche.label.toLowerCase()} clients get real results ⬇️\n\n🏋️ Custom programs · Macro coaching · Weekly check-ins\n\n👇 Comment "${keyword}" for my free starter plan`
+        : `Fat loss & muscle for busy adults 🎯\n\nCustom nutrition + training that fits your life\n\n👇 DM "${keyword}" for my free 5-day plan`,
     });
   }
 
   solutions.push({
     label: "Name field",
     priority: "high",
-    problem: `"${brand}" missing search keywords.`,
+    problem: `Name field missing search keywords — people search "fitness coach" not handles.`,
     placement: "Edit profile → Name (30 chars max)",
-    copy: isCoach ? `${brand.split("|")[0].trim().slice(0, 14)} | Online Coach` : `${brand.slice(0, 16)} | Fat Loss Coach`,
+    copy: isCoach
+      ? `${brand.slice(0, 14)} | Online Coach`
+      : `${brand.slice(0, 14)} | Fat Loss Coach`,
   });
 
   if (scores.linkScore < 70) {
     solutions.push({
       label: "Link / DM strategy",
       priority: "high",
-      problem: profile.externalUrl ? `Link: ${profile.externalUrl} — DM funnel converts better for coaches.` : "No conversion path in bio.",
-      placement: "Bio + ManyChat or link page",
-      copy: `Recommended: "👇 Comment ${keyword} for my free guide"
-Set ManyChat to auto-DM when someone comments.
-
-If using a link: one page only → Free guide OR Book call. No Linktree clutter.`,
+      problem: profile.externalUrl
+        ? `${profile.externalUrl} — DM funnel converts 12–25% vs 1.5% for link clicks.`
+        : "No conversion path in bio.",
+      placement: "Bio last line + ManyChat automation",
+      copy: `Add to bio: "👇 Comment ${keyword} for my free guide"\nSet ManyChat to auto-DM any comment containing "${keyword}".\n\nIf using a link: one destination only — free guide OR book a call. No Linktrees with 10 links.`,
     });
+  }
+
+  // Post-specific solutions based on what we found
+  const posts = profile.recentPosts;
+  if (posts.length > 0) {
+    const noCtaPosts = posts.filter(p => !/\b(DM|comment|👇|link)\b/i.test(p.caption));
+    if (noCtaPosts.length > posts.length * 0.4) {
+      solutions.push({
+        label: "Add CTA to posts",
+        priority: "high",
+        problem: `${noCtaPosts.length}/${posts.length} recent posts have no CTA — views don't convert to clients.`,
+        placement: "Last line of every caption",
+        copy: `End every caption with:\n\n"💬 Comment ${keyword} below and I'll DM you my free [guide/plan/resource]"\n\nor for Reels:\n"Comment ${keyword} for the full breakdown 👇"`,
+      });
+    }
+
+    const noHookPosts = posts.filter(p => !hasStrongHook(p.caption));
+    if (noHookPosts.length > posts.length * 0.5) {
+      solutions.push({
+        label: "Rewrite post hooks",
+        priority: "high",
+        problem: `${noHookPosts.length}/${posts.length} posts start with a weak first line — people scroll past before reading.`,
+        placement: "First line of caption (before any line breaks)",
+        copy: `Strong hook templates:\n• "Stop doing this if you want to [outcome]"\n• "You've been [action] for [time]. The scale hasn't moved. It's not your fault."\n• "3 reasons your [goal] isn't working (and it's not your diet)"\n• "POV: You finally stopped [mistake] and started [solution]"`,
+      });
+    }
+
+    const reels = posts.filter(p => p.isVideo);
+    if (reels.length < posts.length * 0.3) {
+      solutions.push({
+        label: "Post more Reels",
+        priority: "medium",
+        problem: `Only ${reels.length}/${posts.length} recent posts are Reels — Reels get 3–5× more reach.`,
+        placement: "Aim for 2+ Reels per week",
+        copy: `Reels formula:\n• 0–3s: hook on screen as text (mirror/problem)\n• 3–20s: show the contrast (before → after, wrong vs right)\n• 20–30s: give value or tease the result\n• End: "Comment ${keyword} for [resource]"\n\nRepurpose carousels as Reels — read slide 1 aloud as the hook.`,
+      });
+    }
   }
 
   solutions.push({
     label: "Story Highlights",
     priority: "medium",
-    problem: `@${profile.username} needs Highlights as a mini sales page.`,
+    problem: `@${profile.username}'s Highlights should act as a silent sales page.`,
     placement: "Profile → Story Highlights",
-    copy: `RESULTS · HOW IT WORKS · FREE GUIDE · FAQ · ABOUT`,
+    copy: `Create 5 Highlights:\n1. RESULTS — client before/afters with numbers\n2. HOW IT WORKS — your process in 3 steps\n3. FREE GUIDE — link or DM CTA\n4. FAQ — answer top 5 objections\n5. ABOUT — your story, credibility, proof`,
   });
 
   solutions.push({
-    label: "Pinned posts",
+    label: "Pinned posts (3)",
     priority: "medium",
-    problem: "First impression controlled by last 3 posts only.",
-    placement: "Pin 3 posts on grid",
-    copy: `1. Best client result (specific numbers)
-2. "How to work with me" carousel
-3. Top Reel — caption ends with "Comment ${keyword}"`,
-  });
-
-  solutions.push({
-    label: "Weekly content mix",
-    priority: "medium",
-    problem: `Topic clarity for ${niche.label}.`,
-    placement: "4–5 posts/week",
-    copy: `2 carousels (myth-bust / save-this-workout)
-2 Reels (30–60s, hook in 3s, CTA: Comment ${keyword})
-Daily Stories: proof → tip → DM invite`,
+    problem: "First 3 grid posts control first impressions — most accounts waste this.",
+    placement: "Long press post → Pin",
+    copy: `Pin these 3:\n1. Best client result with specific numbers (e.g. "Jake lost 14kg in 12 weeks")\n2. "How to work with me" carousel\n3. Your best Reel — ends with "Comment ${keyword}"`,
   });
 
   if (!profile.isBusiness) {
     solutions.push({
-      label: "Creator account",
+      label: "Switch to Creator account",
       priority: "medium",
-      problem: "Personal account — no insights or contact button.",
-      placement: "Settings → Professional account → Creator",
-      copy: `Category: Coach or Fitness Trainer. Enable contact email + Insights.`,
+      problem: "Personal account has no Insights, no contact button, and lower conversion.",
+      placement: "Settings → Account → Switch to Professional Account → Creator",
+      copy: `Category: Coach or Fitness Trainer.\nEnable: Contact email + Insights + Branded content.`,
     });
   }
 
   return solutions;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function avg(nums: (number | null)[]): number | null {
+  const valid = nums.filter((n): n is number => n != null);
+  return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+}
+
+function dedupe(solutions: CopySolution[]): CopySolution[] {
+  const seen = new Set<string>();
+  return solutions.filter(s => {
+    if (seen.has(s.label)) return false;
+    seen.add(s.label);
+    return true;
+  });
+}
+
+function getAlgorithmSummary(profile: InstagramProfileData, niche: { label: string }): string {
+  const postCount = profile.posts ?? 0;
+  if (postCount < 9) {
+    return `@${profile.username}: only ${postCount} posts — build grid to 9–12 before scaling Reels. Niche: ${niche.label}.`;
+  }
+  return `@${profile.username}: focus on "${niche.label}" — saves + DM shares drive reach in 2026.`;
 }
 
 function buildInvalidInputReport(input: string, analyzedAt: string): AnalysisReport {
@@ -339,25 +534,25 @@ function buildInvalidInputReport(input: string, analyzedAt: string): AnalysisRep
     id: generateId(),
     inputType: "instagram_profile",
     detectedType: "instagram_profile",
-    title: "Invalid Instagram Profile",
-    subtitle: "Could not parse input",
+    title: "Invalid Instagram input",
+    subtitle: "Could not parse as a profile",
     analyzedAt,
     input,
     overallScore: 0,
     scores: [],
     sections: [{
       id: "error",
-      title: "Invalid Input",
+      title: "How to enter an Instagram profile",
       category: "overview",
-      summary: "Use a profile URL, not a post or reel.",
+      summary: "Enter just the handle — no URL or @ needed.",
       details: [
-        "✓ instagram.com/username",
-        "✓ @username",
-        "✓ instagram.com/username | Your bio text here",
-        "✗ instagram.com/p/… (post)",
-        "✗ instagram.com/reel/… (reel)",
+        "✓  coach_christianwilson",
+        "✓  @coach_christianwilson",
+        "✓  instagram.com/coach_christianwilson",
+        "✗  instagram.com/p/…  (that's a post, not a profile)",
+        "✗  instagram.com/reel/…",
       ],
     }],
-    actionItems: [{ priority: "high", action: "Enter instagram.com/yourhandle or @yourhandle" }],
+    actionItems: [{ priority: "high", action: "Enter your Instagram handle and click Analyze" }],
   };
 }
