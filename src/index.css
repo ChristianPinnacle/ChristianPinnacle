@@ -1,0 +1,152 @@
+:root {
+  --bg: #070a18;
+  --suit-blue: #3c58d6;
+  --pad-gold: #f5c542;
+  --armour-white: #edf1fa;
+  --scouter-red: #ff4d4d;
+  --war-room: #9aafff;
+  --font-display: 'Bungee', cursive;
+  --font-body: 'Saira Condensed', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--armour-white);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 412px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 1.5rem 1rem 2rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--suit-blue);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--pad-gold);
+  letter-spacing: 0.05em;
+}
+
+.subtitle {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--war-room);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.status {
+  text-align: center;
+  color: var(--war-room);
+  font-size: 1rem;
+}
+
+.error {
+  color: var(--scouter-red);
+  text-align: center;
+  font-weight: 600;
+}
+
+.card {
+  background: rgba(60, 88, 214, 0.15);
+  border: 1px solid var(--suit-blue);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--pad-gold);
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.status-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1rem;
+}
+
+.label {
+  color: var(--war-room);
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.value {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.value.ok {
+  color: #4dff88;
+}
+
+.value.warn {
+  color: var(--pad-gold);
+  font-size: 0.75rem;
+}
+
+.note-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.note-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(7, 10, 24, 0.5);
+  border-radius: 4px;
+}
+
+.folder-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  background: var(--suit-blue);
+  color: var(--armour-white);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.note-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
