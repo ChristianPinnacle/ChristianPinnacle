@@ -8,6 +8,7 @@ import { EnergyReading } from './components/EnergyReading';
 import { RadarChart } from './components/RadarChart';
 import { FolderCards } from './components/FolderCards';
 import { BattleLog } from './components/BattleLog';
+import { NoteEditor, type NoteFormData } from './components/NoteEditor';
 
 interface VaultNote {
   path: string;
@@ -31,6 +32,7 @@ interface GraphData {
 }
 
 type View = 'hud' | 'graph' | 'list';
+type EditorMode = { mode: 'create' } | { mode: 'edit'; notePath: string };
 
 const SERVER = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3001';
 
@@ -39,6 +41,7 @@ export function App() {
   const [meta, setMeta] = useState<VaultMeta[]>([]);
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [view, setView] = useState<View>('hud');
+  const [editor, setEditor] = useState<EditorMode | null>(null);
   const [selectedNote, setSelectedNote] = useState<{ title: string; content: string } | null>(null);
   const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -47,17 +50,21 @@ export function App() {
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const reload = async () => {
+    const [vaultNotes, vaultMeta, graphData] = await Promise.all([
+      trpc.vault.list.query(),
+      trpc.vault.meta.query(),
+      trpc.graph.get.query(),
+    ]);
+    setNotes(vaultNotes);
+    setMeta(vaultMeta);
+    setGraph(graphData);
+  };
+
   useEffect(() => {
     async function load() {
       try {
-        const [vaultNotes, vaultMeta, graphData] = await Promise.all([
-          trpc.vault.list.query(),
-          trpc.vault.meta.query(),
-          trpc.graph.get.query(),
-        ]);
-        setNotes(vaultNotes);
-        setMeta(vaultMeta);
-        setGraph(graphData);
+        await reload();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to connect');
       } finally {
@@ -66,11 +73,8 @@ export function App() {
     }
     void load();
 
-    // check if portrait exists
     fetch(`${SERVER}/assets/portrait`)
-      .then((r) => {
-        if (r.ok) setPortraitUrl(`${SERVER}/assets/portrait?t=${Date.now()}`);
-      })
+      .then((r) => { if (r.ok) setPortraitUrl(`${SERVER}/assets/portrait?t=${Date.now()}`); })
       .catch(() => null);
   }, []);
 
@@ -80,9 +84,7 @@ export function App() {
       headers: { 'Content-Type': file.type, 'Content-Length': String(file.size) },
       body: file,
     });
-    if (res.ok) {
-      setPortraitUrl(`${SERVER}/assets/portrait?t=${Date.now()}`);
-    }
+    if (res.ok) setPortraitUrl(`${SERVER}/assets/portrait?t=${Date.now()}`);
   };
 
   const handleNodeTap = async (nodeId: string) => {
@@ -102,6 +104,45 @@ export function App() {
     scanTimerRef.current = setTimeout(() => setScanning(false), 1800);
   };
 
+  const handleCreate = async (data: NoteFormData) => {
+    await trpc.vault.create.mutate(data);
+    await reload();
+    setEditor(null);
+  };
+
+  const handleUpdate = async (notePath: string, data: NoteFormData) => {
+    await trpc.vault.update.mutate({ path: notePath, ...data });
+    await reload();
+    setEditor(null);
+    setSelectedNote(null);
+  };
+
+  const handleDelete = async (notePath: string) => {
+    await trpc.vault.delete.mutate({ path: notePath });
+    await reload();
+    setEditor(null);
+    setSelectedNote(null);
+  };
+
+  const openEditor = (mode: EditorMode) => {
+    setSelectedNote(null);
+    setEditor(mode);
+  };
+
+  const editNote = async (notePath: string) => {
+    openEditor({ mode: 'edit', notePath });
+  };
+
+  const getEditInitial = (): Partial<NoteFormData> | undefined => {
+    if (!editor || editor.mode !== 'edit') return undefined;
+    const note = notes.find((n) => n.path === editor.notePath);
+    if (!note) return undefined;
+    return {
+      title: note.title,
+      folder: note.folder as NoteFormData['folder'],
+    };
+  };
+
   const topNote = [...meta].sort((a, b) => b.plScore - a.plScore)[0];
   const filteredNotes = activeFolder ? notes.filter((n) => n.folder === activeFolder) : notes;
 
@@ -113,6 +154,7 @@ export function App() {
           <button className={`tab ${view === 'hud' ? 'tab-active' : ''}`} onClick={() => setView('hud')}>HUD</button>
           <button className={`tab ${view === 'graph' ? 'tab-active' : ''}`} onClick={() => setView('graph')}>GRAPH</button>
           <button className={`tab ${view === 'list' ? 'tab-active' : ''}`} onClick={() => setView('list')}>NOTES</button>
+          <button className="tab tab-new" onClick={() => openEditor({ mode: 'create' })}>＋</button>
         </div>
       </header>
 
@@ -120,10 +162,36 @@ export function App() {
         {loading && <p className="status">Powering up scouter…</p>}
         {error && <p className="error">SCOUTER ERROR: {error}</p>}
 
-        {selectedNote && (
+        {/* ── NOTE EDITOR ── */}
+        {editor && (
+          editor.mode === 'create' ? (
+            <NoteEditor
+              onSave={handleCreate}
+              onCancel={() => setEditor(null)}
+            />
+          ) : (
+            <NoteEditor
+              notePath={editor.notePath}
+              initial={getEditInitial()}
+              onSave={(data) => handleUpdate(editor.notePath, data)}
+              onDelete={() => handleDelete(editor.notePath)}
+              onCancel={() => setEditor(null)}
+            />
+          )
+        )}
+
+        {/* ── NOTE READER ── */}
+        {selectedNote && !editor && (
           <div className="note-panel">
             <div className="note-panel-header">
               <span className="note-panel-title">{selectedNote.title}</span>
+              <button
+                className="edit-btn"
+                onClick={() => {
+                  const note = notes.find((n) => n.title === selectedNote.title);
+                  if (note) void editNote(note.path);
+                }}
+              >✎</button>
               <button className="close-btn" onClick={() => setSelectedNote(null)}>✕</button>
             </div>
             <pre className="note-content">{selectedNote.content}</pre>
@@ -131,46 +199,26 @@ export function App() {
         )}
 
         {/* ── HUD VIEW ── */}
-        {view === 'hud' && !loading && (
+        {view === 'hud' && !loading && !editor && (
           <div className="hud">
-            {/* Portrait + PL Scanner */}
             <div className="hud-top">
               <PortraitSlot portraitUrl={portraitUrl} onUpload={handlePortraitUpload} />
               <div className="hud-top-right">
                 <button className="pl-scan-btn" onClick={handlePlScan}>POWER LEVEL SCAN</button>
-                <PlScanner
-                  topScore={topNote?.plScore ?? 0}
-                  topTitle={topNote?.title ?? '—'}
-                  scanning={scanning}
-                />
+                <PlScanner topScore={topNote?.plScore ?? 0} topTitle={topNote?.title ?? '—'} scanning={scanning} />
               </div>
             </div>
-
-            {/* Energy + Radar */}
             <div className="hud-mid">
               <EnergyReading noteCount={notes.length} linkCount={graph?.edges.length ?? 0} />
               {graph && <RadarChart nodes={graph.nodes} />}
             </div>
-
-            {/* Folder cards */}
-            <FolderCards
-              notes={notes}
-              onFolderTap={(folder) =>
-                setActiveFolder((prev) => (prev === folder ? null : folder))
-              }
-            />
-
-            {/* Active folder note list */}
+            <FolderCards notes={notes} onFolderTap={(f) => setActiveFolder((prev) => (prev === f ? null : f))} />
             {activeFolder && (
               <div className="card">
                 <h2 className="card-title">{activeFolder.toUpperCase()}</h2>
                 <ul className="note-list">
                   {filteredNotes.map((note) => (
-                    <li
-                      key={note.path}
-                      className="note-item clickable"
-                      onClick={() => void handleNodeTap(note.path)}
-                    >
+                    <li key={note.path} className="note-item clickable" onClick={() => void handleNodeTap(note.path)}>
                       <span className="note-title">{note.title}</span>
                       {typeof note.plScore === 'number' && (
                         <span className="pl-score">PL {note.plScore.toLocaleString()}</span>
@@ -180,14 +228,12 @@ export function App() {
                 </ul>
               </div>
             )}
-
-            {/* Battle log */}
             <BattleLog entries={meta} />
           </div>
         )}
 
         {/* ── GRAPH VIEW ── */}
-        {view === 'graph' && graph && !loading && (
+        {view === 'graph' && graph && !loading && !editor && (
           <section className="graph-section">
             <GraphLegend />
             <div className="graph-wrap">
@@ -197,17 +243,13 @@ export function App() {
           </section>
         )}
 
-        {/* ── LIST VIEW ── */}
-        {view === 'list' && !loading && (
+        {/* ── NOTES LIST VIEW ── */}
+        {view === 'list' && !loading && !editor && (
           <section className="card">
             <h2 className="card-title">VAULT NOTES</h2>
             <ul className="note-list">
               {notes.map((note) => (
-                <li
-                  key={note.path}
-                  className="note-item clickable"
-                  onClick={() => void handleNodeTap(note.path)}
-                >
+                <li key={note.path} className="note-item clickable" onClick={() => void handleNodeTap(note.path)}>
                   <span className="folder-tag">{note.folder}</span>
                   <span className="note-title">{note.title}</span>
                   {typeof note.plScore === 'number' && (

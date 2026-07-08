@@ -1,5 +1,28 @@
 # What's Built
 
+## Phase 1, Task 5 — Note CRUD (complete) — PHASE 1 DONE ✅
+
+### What changed
+- **`vault.create` tRPC mutation**: title + folder + tags + summary + body → writes valid `.md` to vault with correct frontmatter. Auto-generates slug filename from title.
+- **`vault.update` tRPC mutation**: patches any field on an existing note, preserves original `created` date, bumps `updated` to today.
+- **`vault.delete` tRPC mutation**: deletes note file from vault by path.
+- **`server/lib/vault/writer.ts`**: `serializeNote`, `writeNote`, `buildNotePath`, `buildFrontmatter`, `deleteNote` helpers. Guarantee valid frontmatter on every write (rule 2 enforced).
+- **NoteEditor component** (`src/components/NoteEditor.tsx`): title input, folder picker (dropdown), tags input (comma-separated), summary input, WRITE/PREVIEW tabs. Preview renders basic markdown (bold, italic, headings, wikilinks). Two-tap delete confirm.
+- **App UI**: `＋` tab in header opens new note editor. Edit (✎) button in note reader opens edit editor. Reload after create/update/delete keeps graph and HUD live.
+- **Tests**: 20 passing — 4 new CRUD tests (create, duplicate rejection, update body, delete).
+
+### Verified working
+- `npm run test` — 20/20 pass
+- Create note → appears in list, graph, and HUD folder count
+- Edit note → body and title update, `updated` date bumps
+- Delete note → removed from vault and all views
+- Preview tab renders headings, bold, italic, wikilinks styled
+
+### Phase 1 Definition of Done — MET
+Christian can open the app, see notes as HUD + graph, tap a note to read it, create a note, upload portrait. No AI. ✅
+
+---
+
 ## Phase 1, Task 4 — HUD Screen (complete)
 
 ### What changed

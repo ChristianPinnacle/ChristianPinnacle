@@ -582,6 +582,196 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Note editor ── */
+.note-editor {
+  background: rgba(7,10,24,0.95);
+  border: 1px solid var(--suit-blue);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(60,88,214,0.25);
+}
+
+.editor-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--pad-gold);
+  letter-spacing: 0.08em;
+}
+
+.editor-error {
+  color: var(--scouter-red);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255,77,77,0.1);
+}
+
+.editor-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem 0;
+}
+
+.editor-input,
+.editor-select {
+  background: rgba(60,88,214,0.12);
+  border: 1px solid rgba(60,88,214,0.5);
+  border-radius: 4px;
+  color: var(--armour-white);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 0.4rem 0.5rem;
+  width: 100%;
+}
+
+.editor-select option {
+  background: #070a18;
+}
+
+.editor-input::placeholder {
+  color: rgba(154,175,255,0.45);
+}
+
+.editor-input:focus,
+.editor-select:focus,
+.editor-textarea:focus {
+  outline: none;
+  border-color: var(--suit-blue);
+}
+
+.editor-tab-bar {
+  display: flex;
+  padding: 0.4rem 0.75rem 0;
+  gap: 0.5rem;
+}
+
+.editor-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--war-room);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.editor-tab-active {
+  color: var(--pad-gold);
+  border-bottom-color: var(--pad-gold);
+}
+
+.editor-textarea {
+  background: rgba(7,10,24,0.8);
+  border: none;
+  border-top: 1px solid rgba(60,88,214,0.3);
+  color: var(--armour-white);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 0.6rem 0.75rem;
+  resize: none;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.editor-preview {
+  background: rgba(7,10,24,0.8);
+  border-top: 1px solid rgba(60,88,214,0.3);
+  color: var(--armour-white);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  min-height: 180px;
+  padding: 0.6rem 0.75rem;
+  margin-top: 0.25rem;
+  overflow-y: auto;
+}
+
+.editor-preview h1,
+.editor-preview h2,
+.editor-preview h3 {
+  color: var(--pad-gold);
+  font-family: var(--font-display);
+  margin-bottom: 0.4rem;
+}
+
+.editor-preview .wikilink {
+  color: var(--war-room);
+  border-bottom: 1px dashed var(--war-room);
+}
+
+.editor-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.editor-btn-save,
+.editor-btn-delete,
+.editor-btn-cancel {
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.07em;
+  padding: 0.4rem 0.75rem;
+}
+
+.editor-btn-save {
+  background: var(--suit-blue);
+  color: var(--armour-white);
+  flex: 1;
+}
+
+.editor-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.editor-btn-delete {
+  background: rgba(255,77,77,0.15);
+  border: 1px solid var(--scouter-red);
+  color: var(--scouter-red);
+}
+
+.editor-btn-confirm {
+  background: var(--scouter-red);
+  color: #fff;
+}
+
+.editor-btn-cancel {
+  background: rgba(154,175,255,0.1);
+  border: 1px solid var(--war-room);
+  color: var(--war-room);
+}
+
+.tab-new {
+  font-size: 1.1rem;
+  color: var(--pad-gold) !important;
+  padding: 0 0.5rem;
+}
+
+.edit-btn {
+  background: none;
+  border: none;
+  color: var(--war-room);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.1rem 0.3rem;
+  margin-right: 0.1rem;
+}
+
 /* ── Status list (health card) ── */
 .status-list {
   list-style: none;
