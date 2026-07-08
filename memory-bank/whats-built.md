@@ -1,47 +1,52 @@
 # What's Built
 
+## Phase 1, Task 3 — Graph API + UI (complete)
+
+### What changed
+- **`graph.get` tRPC procedure**: returns nodes (id, title, folder, plScore) + edges (source, target). Reads from DB when configured, falls back to file scan.
+- **`vault.get` tRPC procedure**: returns raw markdown for a note path (used by tap-to-read).
+- **Force-directed layout** (`src/lib/graphLayout.ts`): pure JS simulation (no d3) — repulsion, edge attraction, centre gravity. Runs 120 iterations on mount. Node radius scaled by PL score.
+- **Canvas renderer** (`src/components/GraphCanvas.tsx`): animated RAF loop, flame aura glow per node (radial gradient, pulsing), folder colour-coded dots, edge lines, zoom/pan via pointer events, tap-to-select.
+- **Folder colours** (`src/lib/graphColors.ts`): projects=blue, areas=gold, resources=white, warroom=light-blue, archive/unsorted=grey.
+- **Legend** (`src/components/GraphLegend.tsx`): colour key for all folders.
+- **App UI**: GRAPH / NOTES tab toggle. Tapping a node or list row opens inline note reader panel. Status chips (notes count, links count, DB status).
+- **Tests**: 15 passing — added graph.get and vault.get procedure tests.
+
+### Verified working
+- `npm run test` — 15/15 pass
+- Graph renders 5 nodes with coloured aura, 11 link edges
+- Zoom (wheel/pinch), pan (drag), tap node → note content appears
+- NOTES tab lists all notes with PL scores, clickable
+- Mobile 412px layout: canvas fills width, hint text below
+
+### Raw findings
+- No design mock file in repo — built from spec descriptions in projectbrief.md.
+- Canvas fixed at 412×560 internal resolution; CSS `width: 100%` handles all screen sizes.
+- Force layout is deterministic given same input order; nodes sorted by path before layout.
+
+---
+
 ## Phase 1, Task 2 — Vault Engine (complete)
 
 ### What changed
-- **Vault parser** (`server/lib/vault/parse.ts`): reads frontmatter (title, folder, tags, dates, source, summary) and extracts `[[wikilinks]]` including aliased links (`[[Target|label]]`).
-- **Indexer** (`server/lib/vault/indexer.ts`): scans `vault/`, resolves wikilinks by note title, computes PL scores, builds notes + edges payload.
-- **PL scoring** (`server/lib/vault/plScore.ts`): `500 + inbound_links*800 + sqrt(word_count)*40 + recency_bonus`.
-- **Database writer** (`server/lib/vault/db.ts`): full rebuild of `notes_index` + wiki `links` tables from vault.
-- **`npm run reindex`**: scans vault, resolves 11 wiki edges across 5 sample notes, writes to MySQL when `DATABASE_URL` set; otherwise parses and reports.
-- **Chokidar watcher** (`server/lib/vault/watcher.ts`): on server boot (when DB configured), watches `vault/**/*.md` and debounced re-index on add/change/delete.
-- **API updates**: `health` returns `indexedNoteCount`; `vault.list` returns notes with PL scores (from DB if available, else file scan).
-- **UI**: notes now show PL scores; status shows indexed count and DB online/offline.
-- **Tests**: 13 passing — parse, wikilink extraction, link resolution, PL scoring, rebuild-from-vault, tRPC procedures.
-
-### Verified working
-- `npm run test` — 13/13 pass
-- `npm run reindex` — 5 notes, 11 wiki edges resolved, 0 unresolved
-- Works without MySQL (file-scan fallback); DB write when `DATABASE_URL` configured
-- Server auto-indexes + starts watcher on boot when DB available
-
-### Raw findings
-- `gray-matter` parses YAML dates as `Date` objects — normalized to `YYYY-MM-DD` strings before Zod validation.
-- Sample vault has 11 wiki edges, all resolve cleanly by title match.
-- Marketing Playbook is the hub (most inbound links) — highest PL score among sample notes.
+- Vault parser, indexer, PL scorer, DB writer, chokidar watcher, `npm run reindex`.
+- 13 tests, all passing.
 
 ---
 
 ## Phase 1, Task 1 — Scaffold (complete)
 
 ### What changed
-- Replaced BizLens Next.js app with Saiyan Archive monorepo scaffold.
-- Created `memory-bank/` with all five project docs.
-- **Frontend**: Vite + React 18 on port 5174. DBZ-themed status screen (mobile 412px layout).
-- **Backend**: Express + tRPC on port 3001.
-- **Database**: Drizzle ORM schema for `notes_index`, `links`, `embeddings` tables.
-- **Vault**: `vault/` with 5 sample notes across folders with `[[wikilinks]]`.
-- **Dev**: `npm run dev` starts both servers via concurrently.
+- Vite React frontend, tRPC/Express backend, Drizzle/MySQL config, vault with 5 sample notes.
 
-Design mock approved: `design/brain-v10-hud.jsx` (HUD cards + graph toggle, Vegeta-kit palette, portrait slot).
+Design mock approved: `design/brain-v10-hud.jsx` (HUD cards + graph toggle, portrait slot).
 
 ## Session log
+### 2026-07-08 — Task 3 Graph API + UI
+Built graph.get + vault.get procedures, force-directed canvas renderer, zoom/pan/tap, flame aura, folder colours, tab toggle, inline note reader. 15 tests pass. Ready for Task 4 (HUD screen).
+
 ### 2026-07-08 — Task 2 Vault Engine
-Built vault reader, wikilink parser, PL scorer, DB indexer, chokidar watcher, and full `npm run reindex`. 13 tests passing. Ready for Task 3 (Graph API + UI).
+Built vault reader, wikilink parser, PL scorer, DB indexer, chokidar watcher. 13 tests pass.
 
 ### 2026-07-08 — Task 1 Scaffold
-Built full project skeleton: Vite React frontend, tRPC/Express backend, Drizzle/MySQL config, vault with 5 interlinked sample notes. `npm run dev` boots both. Tests pass.
+Built full project skeleton. npm run dev boots both servers. Tests pass.

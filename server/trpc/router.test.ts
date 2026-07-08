@@ -13,6 +13,18 @@ describe('health', () => {
   });
 });
 
+describe('graph.get', () => {
+  it('returns nodes and edges from vault', async () => {
+    const caller = appRouter.createCaller({});
+    const graph = await caller.graph.get();
+
+    expect(graph.nodes).toHaveLength(5);
+    expect(graph.edges.length).toBeGreaterThan(0);
+    expect(graph.nodes.every((n) => typeof n.plScore === 'number')).toBe(true);
+    expect(graph.nodes.every((n) => typeof n.folder === 'string')).toBe(true);
+  });
+});
+
 describe('vault.list', () => {
   it('returns all sample vault notes with PL scores', async () => {
     const caller = appRouter.createCaller({});
@@ -27,6 +39,16 @@ describe('vault.list', () => {
       'Quick Capture',
     ]);
     expect(notes.every((note) => typeof note.plScore === 'number')).toBe(true);
+  });
+});
+
+describe('vault.get', () => {
+  it('returns raw markdown for a valid note path', async () => {
+    const caller = appRouter.createCaller({});
+    const result = await caller.vault.get({ path: 'projects/mfp-campaign.md' });
+
+    expect(result.content).toContain('MFP Campaign');
+    expect(result.content).toContain('[[Marketing Playbook]]');
   });
 });
 
