@@ -1,11 +1,12 @@
 import { initTRPC } from '@trpc/server';
 import { eq } from 'drizzle-orm';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { getDb } from '../db';
 import { links, notesIndex } from '../db/schema';
 import { buildIndexFromVault } from '../lib/vault/indexer';
+import { parseVaultFile } from '../lib/vault/parse';
 import type { Context } from './context';
 
 const t = initTRPC.context<Context>().create();
@@ -15,16 +16,11 @@ const VAULT_DIR = path.resolve(process.cwd(), 'vault');
 async function countVaultNotes(dir: string): Promise<number> {
   let count = 0;
   const entries = await readdir(dir, { withFileTypes: true });
-
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      count += await countVaultNotes(fullPath);
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      count += 1;
-    }
+    if (entry.isDirectory()) count += await countVaultNotes(fullPath);
+    else if (entry.isFile() && entry.name.endsWith('.md')) count += 1;
   }
-
   return count;
 }
 
@@ -54,17 +50,42 @@ async function listNotesFromFiles() {
   }));
 }
 
+async function getVaultMeta() {
+  const index = await buildIndexFromVault(VAULT_DIR);
+  const metaNotes: Array<{
+    path: string;
+    title: string;
+    folder: string;
+    source: string;
+    updated: string;
+    plScore: number;
+  }> = [];
+
+  for (const note of index.notes) {
+    const rawContent = await readFile(path.join(VAULT_DIR, note.path), 'utf-8');
+    const parsed = parseVaultFile(note.path, rawContent);
+    metaNotes.push({
+      path: note.path,
+      title: note.title,
+      folder: note.folder,
+      source: parsed.frontmatter.source,
+      updated: note.updated,
+      plScore: note.plScore,
+    });
+  }
+
+  return metaNotes;
+}
+
 export const appRouter = t.router({
   health: t.procedure.query(async () => {
     const noteCount = await countVaultNotes(VAULT_DIR);
     const db = getDb();
     let indexedNoteCount: number | null = null;
-
     if (db) {
       const rows = await db.select().from(notesIndex);
       indexedNoteCount = rows.length;
     }
-
     return {
       status: 'ok' as const,
       vaultNoteCount: noteCount,
@@ -79,10 +100,7 @@ export const appRouter = t.router({
       if (db) {
         const noteRows = await db.select().from(notesIndex);
         if (noteRows.length > 0) {
-          const linkRows = await db
-            .select()
-            .from(links)
-            .where(eq(links.type, 'wiki'));
+          const linkRows = await db.select().from(links).where(eq(links.type, 'wiki'));
           return {
             nodes: noteRows.map((note) => ({
               id: note.path,
@@ -121,11 +139,14 @@ export const appRouter = t.router({
     get: t.procedure
       .input(z.object({ path: z.string() }))
       .query(async ({ input }) => {
-        const { readFile } = await import('node:fs/promises');
         const filePath = path.join(VAULT_DIR, input.path);
         const content = await readFile(filePath, 'utf-8');
         return { content };
       }),
+
+    meta: t.procedure.query(async () => {
+      return getVaultMeta();
+    }),
   }),
 
   echo: t.procedure

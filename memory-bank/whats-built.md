@@ -1,5 +1,35 @@
 # What's Built
 
+## Phase 1, Task 4 — HUD Screen (complete)
+
+### What changed
+- **HUD tab** as default view — portrait slot, PL scanner, energy reading, radar, folder cards, battle log.
+- **Portrait slot** (`PortraitSlot.tsx`): tap or drag-drop to upload image → `POST /assets/portrait` → saves to `vault/assets/portrait.png`. `GET /assets/portrait` serves it back. Persists across restarts.
+- **Power Level Scanner** (`PlScanner.tsx`): POWER LEVEL SCAN button triggers flicker animation, then reveals top-scoring note's PL. Shows "IT'S OVER 9000!!!" in scouter red when threshold crossed.
+- **Energy Reading** (`EnergyReading.tsx`): bar + STABLE/ELEVATED/CRITICAL label based on link density (links ÷ notes).
+- **Radar chart** (`RadarChart.tsx`): SVG pentagon radar — one axis per folder, hub PL plotted as area. Shows at a glance which folders are most connected.
+- **Folder cards** (`FolderCards.tsx`): 3×2 grid, each card shows folder rank label, name, and live note count. Tap to filter note list below.
+- **Battle log** (`BattleLog.tsx`): lists notes where `source != user` — shows which agent (MANUS, CLAUDE CODE, CANDICE) wrote what.
+- **`vault.meta` tRPC procedure**: returns path, title, folder, source, updated, plScore for all notes.
+- **Portrait REST endpoints**: `GET/POST /assets/portrait` on Express.
+- **3-tab layout**: HUD · GRAPH · NOTES.
+- **Tests**: 16 passing.
+
+### Verified working
+- `npm run test` — 16/16 pass
+- HUD renders with all 5 cards
+- PL scanner animates and shows top note score
+- Radar chart shows hub positions from sample vault
+- Folder cards show correct counts (projects=1, areas=1, etc.)
+- Battle log shows empty (all sample notes source=user — correct)
+- Portrait upload endpoint functional
+
+### Raw findings
+- All 5 sample notes have `source: user` — battle log shows empty (correct behaviour; will populate when agents write notes in Phase 2+).
+- Portrait image persists to vault/assets/portrait.png — survives server restarts.
+
+---
+
 ## Phase 1, Task 3 — Graph API + UI (complete)
 
 ### What changed

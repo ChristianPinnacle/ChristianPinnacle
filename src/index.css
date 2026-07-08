@@ -274,6 +274,314 @@ body {
   flex-shrink: 0;
 }
 
+/* ── HUD layout ── */
+.hud {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hud-top {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.hud-top-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ── Portrait ── */
+.portrait-slot {
+  width: 100px;
+  height: 120px;
+  border: 2px dashed var(--suit-blue);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  overflow: hidden;
+  background: rgba(60,88,214,0.08);
+  transition: border-color 0.15s;
+}
+
+.portrait-slot:hover,
+.portrait-dragging {
+  border-color: var(--pad-gold);
+}
+
+.portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portrait-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.portrait-icon {
+  font-size: 1.8rem;
+  color: var(--suit-blue);
+}
+
+.portrait-label {
+  font-size: 0.6rem;
+  color: var(--war-room);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ── PL Scanner ── */
+.pl-scan-btn {
+  background: rgba(60,88,214,0.3);
+  border: 1px solid var(--suit-blue);
+  color: var(--pad-gold);
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+.pl-scan-btn:hover {
+  background: rgba(60,88,214,0.5);
+}
+
+.pl-scanner {
+  background: rgba(7,10,24,0.8);
+  border: 1px solid var(--suit-blue);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+}
+
+.pl-scanning .pl-number {
+  animation: plFlicker 0.15s infinite;
+}
+
+.pl-label {
+  font-size: 0.6rem;
+  color: var(--war-room);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.15rem;
+}
+
+.pl-number {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: #4dff88;
+  line-height: 1;
+}
+
+.pl-number.pl-over {
+  color: var(--scouter-red);
+  text-shadow: 0 0 12px var(--scouter-red);
+}
+
+.pl-over-label {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  color: var(--scouter-red);
+  letter-spacing: 0.05em;
+  margin-top: 0.1rem;
+}
+
+.pl-note-title {
+  font-size: 0.7rem;
+  color: var(--armour-white);
+  opacity: 0.7;
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes plFlicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── Energy reading ── */
+.hud-mid {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.energy-card {
+  flex: 1;
+  background: rgba(60,88,214,0.12);
+  border: 1px solid var(--suit-blue);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+
+.energy-label {
+  font-size: 0.6rem;
+  color: var(--war-room);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.4rem;
+}
+
+.energy-bar-wrap {
+  height: 8px;
+  background: rgba(60,88,214,0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.energy-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--suit-blue), #4dff88);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.energy-status {
+  font-size: 0.75rem;
+  color: #4dff88;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ── Radar ── */
+.radar-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.radar-label {
+  font-size: 0.58rem;
+  color: var(--war-room);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.radar-svg {
+  display: block;
+}
+
+/* ── Folder cards ── */
+.folder-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.folder-card {
+  background: rgba(7,10,24,0.6);
+  border: 1px solid;
+  border-radius: 5px;
+  padding: 0.4rem 0.3rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  transition: background 0.15s;
+}
+
+.folder-card:hover {
+  background: rgba(60,88,214,0.2);
+}
+
+.folder-card-rank {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.folder-card-name {
+  font-size: 0.65rem;
+  color: var(--armour-white);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.folder-card-count {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--pad-gold);
+}
+
+/* ── Battle log ── */
+.battle-log {
+  background: rgba(60,88,214,0.1);
+  border: 1px solid rgba(60,88,214,0.4);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+
+.battle-log-label {
+  font-size: 0.6rem;
+  color: var(--war-room);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.4rem;
+}
+
+.battle-log-empty {
+  font-size: 0.8rem;
+  color: var(--war-room);
+  opacity: 0.6;
+}
+
+.battle-log-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.battle-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.battle-agent {
+  color: var(--scouter-red);
+  font-weight: 700;
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+.battle-title {
+  flex: 1;
+  color: var(--armour-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-date {
+  font-size: 0.62rem;
+  color: var(--war-room);
+  flex-shrink: 0;
+}
+
 /* ── Status list (health card) ── */
 .status-list {
   list-style: none;
