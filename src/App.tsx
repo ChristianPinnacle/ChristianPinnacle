@@ -4,6 +4,7 @@ import { trpc } from './trpc';
 interface HealthData {
   status: string;
   vaultNoteCount: number;
+  indexedNoteCount: number | null;
   dbConfigured: boolean;
 }
 
@@ -11,6 +12,7 @@ interface VaultNote {
   path: string;
   title: string;
   folder: string;
+  plScore?: number;
 }
 
 export function App() {
@@ -42,7 +44,7 @@ export function App() {
     <div className="app">
       <header className="header">
         <h1 className="title">SAIYAN ARCHIVE</h1>
-        <p className="subtitle">Vault + Graph — Phase 1 Scaffold</p>
+        <p className="subtitle">Vault Engine — Phase 1 Task 2</p>
       </header>
 
       <main className="main">
@@ -62,9 +64,15 @@ export function App() {
                 <span className="value">{health.vaultNoteCount}</span>
               </li>
               <li>
+                <span className="label">Indexed</span>
+                <span className="value">
+                  {health.indexedNoteCount ?? health.vaultNoteCount}
+                </span>
+              </li>
+              <li>
                 <span className="label">Database</span>
                 <span className={`value ${health.dbConfigured ? 'ok' : 'warn'}`}>
-                  {health.dbConfigured ? 'CONFIGURED' : 'NOT SET (OK FOR NOW)'}
+                  {health.dbConfigured ? 'ONLINE' : 'OFFLINE (FILE SCAN)'}
                 </span>
               </li>
             </ul>
@@ -79,6 +87,9 @@ export function App() {
                 <li key={note.path} className="note-item">
                   <span className="folder-tag">{note.folder}</span>
                   <span className="note-title">{note.title}</span>
+                  {typeof note.plScore === 'number' && (
+                    <span className="pl-score">PL {note.plScore.toLocaleString()}</span>
+                  )}
                 </li>
               ))}
             </ul>

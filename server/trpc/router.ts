@@ -1,7 +1,10 @@
 import { initTRPC } from '@trpc/server';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { getDb } from '../db';
+import { notesIndex } from '../db/schema';
+import { buildIndexFromVault } from '../lib/vault/indexer';
 import type { Context } from './context';
 
 const t = initTRPC.context<Context>().create();
@@ -24,43 +27,53 @@ async function countVaultNotes(dir: string): Promise<number> {
   return count;
 }
 
+async function listNotesFromFiles(): Promise<
+  Array<{ path: string; title: string; folder: string; plScore?: number }>
+> {
+  const index = await buildIndexFromVault(VAULT_DIR);
+  return index.notes.map((note) => ({
+    path: note.path,
+    title: note.title,
+    folder: note.folder,
+    plScore: note.plScore,
+  }));
+}
+
 export const appRouter = t.router({
   health: t.procedure.query(async () => {
     const noteCount = await countVaultNotes(VAULT_DIR);
-    const dbConfigured = Boolean(process.env.DATABASE_URL);
+    const db = getDb();
+    let indexedNoteCount: number | null = null;
+
+    if (db) {
+      const rows = await db.select().from(notesIndex);
+      indexedNoteCount = rows.length;
+    }
 
     return {
       status: 'ok' as const,
       vaultNoteCount: noteCount,
-      dbConfigured,
+      indexedNoteCount,
+      dbConfigured: Boolean(db),
     };
   }),
 
   vault: t.router({
     list: t.procedure.query(async () => {
-      const notes: Array<{ path: string; title: string; folder: string }> = [];
-      const folders = ['projects', 'areas', 'resources', 'warroom', 'unsorted', 'archive'] as const;
-
-      for (const folder of folders) {
-        const folderPath = path.join(VAULT_DIR, folder);
-        try {
-          const files = await readdir(folderPath);
-          for (const file of files) {
-            if (!file.endsWith('.md')) continue;
-            const content = await readFile(path.join(folderPath, file), 'utf-8');
-            const titleMatch = content.match(/^title:\s*(.+)$/m);
-            notes.push({
-              path: `${folder}/${file}`,
-              title: titleMatch?.[1]?.trim() ?? file.replace(/\.md$/, ''),
-              folder,
-            });
-          }
-        } catch {
-          // folder may not exist yet
+      const db = getDb();
+      if (db) {
+        const rows = await db.select().from(notesIndex);
+        if (rows.length > 0) {
+          return rows.map((note) => ({
+            path: note.path,
+            title: note.title,
+            folder: note.folder,
+            plScore: note.plScore,
+          }));
         }
       }
 
-      return notes;
+      return listNotesFromFiles();
     }),
   }),
 
