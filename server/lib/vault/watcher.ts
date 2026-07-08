@@ -1,6 +1,6 @@
 import chokidar from 'chokidar';
 import path from 'node:path';
-import { getDb } from '../db';
+import { getDb } from '../../db';
 import { buildIndexFromVault } from './indexer';
 import { writeVaultIndex } from './db';
 
