@@ -1,32 +1,33 @@
-/**
- * Full vault re-scan → parse links → re-embed changed files.
- * Stub for Task 1 scaffold; implemented in Task 2.
- */
-import { readdir } from 'node:fs/promises';
+import 'dotenv/config';
 import path from 'node:path';
+import { closeDb, getDb } from '../db';
+import { writeVaultIndex } from '../lib/vault/db';
+import { buildIndexFromVault } from '../lib/vault/indexer';
 
 const VAULT_DIR = path.resolve(process.cwd(), 'vault');
 
-async function countMarkdownFiles(dir: string): Promise<number> {
-  let count = 0;
-  const entries = await readdir(dir, { withFileTypes: true });
+async function main(): Promise<void> {
+  const index = await buildIndexFromVault(VAULT_DIR);
 
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      count += await countMarkdownFiles(fullPath);
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      count += 1;
+  console.log(`[reindex] Vault scan complete — ${index.notes.length} notes found.`);
+  console.log(`[reindex] Wikilinks resolved — ${index.links.length} edges.`);
+
+  if (index.unresolvedLinks.length > 0) {
+    console.log(`[reindex] Unresolved wikilinks — ${index.unresolvedLinks.length}:`);
+    for (const unresolved of index.unresolvedLinks) {
+      console.log(`  - ${unresolved.sourcePath} → [[${unresolved.target}]]`);
     }
   }
 
-  return count;
-}
+  const db = getDb();
+  if (!db) {
+    console.log('[reindex] DATABASE_URL not set — parsed vault only, nothing written to DB.');
+    return;
+  }
 
-async function main(): Promise<void> {
-  const noteCount = await countMarkdownFiles(VAULT_DIR);
-  console.log(`[reindex] Vault scan complete — ${noteCount} notes found.`);
-  console.log('[reindex] Full indexing not yet implemented (Task 2).');
+  await writeVaultIndex(db, index);
+  console.log('[reindex] Database rebuilt from vault (notes_index + wiki links).');
+  await closeDb();
 }
 
 main().catch((err: unknown) => {

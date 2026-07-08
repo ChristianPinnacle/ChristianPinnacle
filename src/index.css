@@ -149,4 +149,12 @@ body {
 .note-title {
   font-size: 1rem;
   font-weight: 600;
+  flex: 1;
+}
+
+.pl-score {
+  font-size: 0.75rem;
+  color: var(--pad-gold);
+  font-weight: 700;
+  flex-shrink: 0;
 }

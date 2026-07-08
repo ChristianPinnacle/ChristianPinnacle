@@ -8,12 +8,13 @@ describe('health', () => {
 
     expect(result.status).toBe('ok');
     expect(result.vaultNoteCount).toBe(5);
-    expect(typeof result.dbConfigured).toBe('boolean');
+    expect(result.dbConfigured).toBe(false);
+    expect(result.indexedNoteCount).toBeNull();
   });
 });
 
 describe('vault.list', () => {
-  it('returns all sample vault notes', async () => {
+  it('returns all sample vault notes with PL scores', async () => {
     const caller = appRouter.createCaller({});
     const notes = await caller.vault.list();
 
@@ -25,6 +26,7 @@ describe('vault.list', () => {
       'Q3 Growth Decision',
       'Quick Capture',
     ]);
+    expect(notes.every((note) => typeof note.plScore === 'number')).toBe(true);
   });
 });
 
