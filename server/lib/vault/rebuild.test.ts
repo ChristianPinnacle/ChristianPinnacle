@@ -8,13 +8,19 @@ describe('rebuild from vault', () => {
   it('indexes all sample notes from the vault directory', async () => {
     const index = await buildIndexFromVault(VAULT_DIR);
 
-    expect(index.notes).toHaveLength(5);
+    expect(index.notes).toHaveLength(11);
     expect(index.notes.map((note) => note.title).sort()).toEqual([
+      'Adonis Gym Voice Note',
+      'B2B-First Decision',
+      'Competitor Ad Scan',
       'MFP Campaign',
       'Marketing Playbook',
       'Pinnacle Coaching',
+      'Pinnacle Soul File',
       'Q3 Growth Decision',
       'Quick Capture',
+      'Vault Reindex Log',
+      'VitalEdge Hub',
     ]);
   });
 

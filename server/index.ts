@@ -17,6 +17,7 @@ const VAULT_DIR = path.resolve(process.cwd(), 'vault');
 const app = express();
 
 app.use(cors({ origin: CLIENT_ORIGIN }));
+app.use('/vault-assets', express.static(path.join(VAULT_DIR, 'assets')));
 app.use(
   '/trpc',
   createExpressMiddleware({

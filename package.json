@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch server/index.ts",
-    "dev:client": "vite",
-    "build": "vite build",
+    "dev:client": "vite --config client/vite.config.ts",
+    "build": "vite build --config client/vite.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "reindex": "tsx server/scripts/reindex.ts",
@@ -15,7 +15,9 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.2",
     "@trpc/client": "^11.4.3",
+    "@trpc/react-query": "^11.18.0",
     "@trpc/server": "^11.4.3",
     "chokidar": "^4.0.3",
     "cors": "^2.8.5",

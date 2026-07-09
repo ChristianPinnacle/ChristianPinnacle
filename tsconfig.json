@@ -18,6 +18,6 @@
       "@server/*": ["./server/*"]
     }
   },
-  "include": ["src", "server", "vite.config.ts", "drizzle.config.ts"],
+  "include": ["client/src", "server", "client/vite.config.ts", "drizzle.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

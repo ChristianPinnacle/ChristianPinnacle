@@ -1,18 +1,32 @@
 # What's Next
 
-## Current phase: PHASE 1 — Vault + Graph
+## Current phase: PHASE 1 — Vault + Graph ✅ COMPLETE
 
-### Task queue (do in order, one per session)
-1. ~~**Scaffold**: Vite React app + tRPC/Express server + Drizzle/MySQL config + vault/ dir with 5 sample notes (correct frontmatter, some [[wikilinks]]). npm run dev boots both. Commit.~~ ✅ Done
-2. ~~**Vault engine**: reader (frontmatter + wikilink parse), chokidar watcher, notes_index + links tables, `npm run reindex`. Tests: parse, link extraction, rebuild-from-vault.~~ ✅ Done
-3. **Graph API + UI**: `graph.get` tRPC procedure → nodes/edges. Port canvas renderer from design/brain-v10-hud.jsx GraphPane (zoom/pan/tap, flame aura, folder colors). Mobile 412px verified.
-4. **HUD screen**: port v10 card layout (header, portrait slot with tap-to-upload → vault/assets/portrait.png, POWER LEVEL SCAN wired to real PL scores, energy reading, radar showing real hub positions, folder cards with live counts, battle log reading vault files where source != user).
-5. **Note CRUD**: create/edit/delete via UI writes .md to vault; folder picker; markdown editor (textarea + preview is fine).
+**Awaiting Phase 1 review** (see START-HERE.md step 6) before starting Phase 2.
 
-### Definition of done for Phase 1
+### Task queue (Phase 1 — all done)
+1. ~~**Scaffold**~~ ✅ Done
+2. ~~**Vault engine**~~ ✅ Done
+3. ~~**Graph API + UI**~~ ✅ Done 2026-07-08
+4. ~~**HUD screen**~~ ✅ Done 2026-07-08
+5. ~~**Note CRUD**~~ ✅ Done 2026-07-08
+
+### Definition of done for Phase 1 ✅
 Christian can open the app on his phone, see his notes as the HUD + graph, tap a note to read it, create a note, upload his portrait. No AI yet.
 
-## Phase 2 (do not start): RAG chat. Phase 3: auto-linking + real PL + summaries. Phase 4: CREATE/DECIDE modes + PDF import. Phase 5: PWA + PIN + Railway deploy + real vault import.
+---
+
+## Phase 2 — RAG chat (Scouter) — DO NOT START until Phase 1 review
+
+Planned tasks (to be broken down after review):
+1. **Embeddings pipeline** — chunk + embed on save/reindex, store in MySQL
+2. **invokeLLM** — wire Anthropic wrapper (currently stub)
+3. **ASK mode UI** — retrieve → Claude → answer with citation chips → ignite source nodes on graph
+4. **Node-scoped chat** — "Ask about this" from selected graph node
+
+Requires: `DATABASE_URL`, `ANTHROPIC_API_KEY`
+
+## Phase 3: auto-linking + real PL + summaries. Phase 4: CREATE/DECIDE modes + PDF import. Phase 5: PWA + PIN + Railway deploy + real vault import.
 
 ## Backlog
 Voice capture, image OCR, KPI feeds, GHL/Stripe ingestion, client nodes (security review first), competitor watch, weekly digest.

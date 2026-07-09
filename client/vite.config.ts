@@ -1,0 +1,23 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
+  root: __dirname,
+  plugins: [react()],
+  server: {
+    port: 5174,
+    proxy: {
+      "/trpc": "http://localhost:3001",
+      "/health": "http://localhost:3001",
+      "/vault-assets": "http://localhost:3001",
+    },
+  },
+  build: {
+    outDir: path.resolve(__dirname, "../dist/client"),
+    emptyOutDir: true,
+  },
+});

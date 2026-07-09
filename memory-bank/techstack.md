@@ -1,5 +1,14 @@
 # Tech Stack — Saiyan Archive
 
+## DB / MySQL (Phase 1 vs Phase 2)
+
+**Phase 1 default: file-scan mode.** The app reads and indexes notes directly from `vault/` on disk. No MySQL setup is required for daily use.
+
+- `DATABASE_URL` is **optional in Phase 1** and **required for Phase 2** (RAG embeddings, persistent derived index at scale).
+- If `DATABASE_URL` is unset, the server logs `[vault] DATABASE_URL not set — file scan only, watcher disabled.` — **this is expected, not a bug.**
+- Drizzle schema + `npm run reindex` exist so the DB layer is ready; they activate when you configure MySQL later.
+- The chokidar watcher only runs when MySQL is connected (it writes to derived tables). Vault CRUD in Phase 1 writes `.md` files; the UI refreshes via file-scan on the next query.
+
 ## Stack
 - **Frontend**: React 18 + Vite, single-page PWA. Canvas graph renderer (no d3 dependency — port from design mock).
 - **Backend**: Node 20 + tRPC + Express adapter. Port 3001.
