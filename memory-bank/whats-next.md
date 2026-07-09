@@ -16,3 +16,4 @@ Christian can open the app on his phone, see his notes as the HUD + graph, tap a
 
 ## Backlog
 Voice capture, image OCR, KPI feeds, GHL/Stripe ingestion, client nodes (security review first), competitor watch, weekly digest.
+Unrestricted / low-filter AI image+video gen/edit app (separate product — not Saiyan Archive; false-positive blocks on non-sexual prompts).
