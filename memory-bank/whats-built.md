@@ -1,47 +1,84 @@
 # What's Built
 
-## Phase 1, Task 2 — Vault Engine (complete)
+## Phase 1 progress (Tasks 1–5 complete)
+
+| Task | Status | Summary |
+|------|--------|---------|
+| 1 — Scaffold | ✅ | Vite React (:5174) + Express/tRPC (:3001), Drizzle schema, sample vault, `npm run dev` |
+| 2 — Vault engine | ✅ | Frontmatter + wikilink parser, PL scoring, `npm run reindex`, chokidar watcher (when DB set) |
+| 3 — Graph API + UI | ✅ | `graph.get`, canvas graph (zoom/pan/tap, flame aura, folder colors), HUD ↔ GRAPH toggle |
+| 4 — HUD screen | ✅ | Portrait upload, PL scan, energy reading, radar, folder cards, agent battle log |
+| 5 — Note CRUD | ✅ | Create/edit/delete notes from UI; writes valid `.md` to vault; folder picker; markdown preview |
+
+**Test count:** 38/38 passing.
+
+**Phase 1 definition of done:** Christian can open the app, see HUD + graph, tap a note to read it, create a note, upload portrait. ✅ (PIN/deploy = Phase 5)
+
+---
+
+## Phase 1, Task 5 — Note CRUD (complete)
 
 ### What changed
-- **Vault parser** (`server/lib/vault/parse.ts`): reads frontmatter (title, folder, tags, dates, source, summary) and extracts `[[wikilinks]]` including aliased links (`[[Target|label]]`).
-- **Indexer** (`server/lib/vault/indexer.ts`): scans `vault/`, resolves wikilinks by note title, computes PL scores, builds notes + edges payload.
-- **PL scoring** (`server/lib/vault/plScore.ts`): `500 + inbound_links*800 + sqrt(word_count)*40 + recency_bonus`.
-- **Database writer** (`server/lib/vault/db.ts`): full rebuild of `notes_index` + wiki `links` tables from vault.
-- **`npm run reindex`**: scans vault, resolves 11 wiki edges across 5 sample notes, writes to MySQL when `DATABASE_URL` set; otherwise parses and reports.
-- **Chokidar watcher** (`server/lib/vault/watcher.ts`): on server boot (when DB configured), watches `vault/**/*.md` and debounced re-index on add/change/delete.
-- **API updates**: `health` returns `indexedNoteCount`; `vault.list` returns notes with PL scores (from DB if available, else file scan).
-- **UI**: notes now show PL scores; status shows indexed count and DB online/offline.
-- **Tests**: 13 passing — parse, wikilink extraction, link resolution, PL scoring, rebuild-from-vault, tRPC procedures.
+- **Notes API** (`notes.get`, `notes.create`, `notes.update`, `notes.delete`): read/write/delete `.md` files in `vault/` with valid frontmatter every time.
+- **Vault writer** (`server/lib/vault/notes.ts`): serializes frontmatter, slugifies titles, handles folder moves on edit.
+- **Note UI**: NoteList, NoteView, NoteEditor with folder picker, WRITE/PREVIEW toggle, wikilink-friendly textarea.
+- **App actions**: bottom **NOTES** + **+ NEW** buttons; graph selected node → **OPEN NOTE**; delete with confirm dialog.
+- After save/delete, graph + HUD + folder counts refresh automatically (file-scan, no MySQL needed).
 
 ### Verified working
-- `npm run test` — 13/13 pass
-- `npm run reindex` — 5 notes, 11 wiki edges resolved, 0 unresolved
-- Works without MySQL (file-scan fallback); DB write when `DATABASE_URL` configured
-- Server auto-indexes + starts watcher on boot when DB available
+- `npm run test` — 38/38 pass (includes note module + tRPC CRUD integration test)
+- Create → read → update (including folder move) → delete round-trip on disk
+- All writes include required frontmatter (`source: user` on UI-created notes)
 
-### Raw findings
-- `gray-matter` parses YAML dates as `Date` objects — normalized to `YYYY-MM-DD` strings before Zod validation.
-- Sample vault has 11 wiki edges, all resolve cleanly by title match.
-- Marketing Playbook is the hub (most inbound links) — highest PL score among sample notes.
+---
+
+## Phase 1, Task 4 — HUD Screen (complete)
+
+HUD API, portrait upload, battle log (agent notes only), full v10 card layout, 3 agent sample notes.
+
+---
+
+## Phase 1, Task 3 — Graph API + UI (complete)
+
+`graph.get`, GraphPane canvas, HUD ↔ GRAPH toggle, folder filters, PL scan on node tap.
+
+---
+
+## Phase 1, Task 2 — Vault Engine (complete)
+
+Parser, indexer, PL formula, `npm run reindex`, chokidar watcher. File-scan default without MySQL.
 
 ---
 
 ## Phase 1, Task 1 — Scaffold (complete)
 
-### What changed
-- Replaced BizLens Next.js app with Saiyan Archive monorepo scaffold.
-- Created `memory-bank/` with all five project docs.
-- **Frontend**: Vite + React 18 on port 5174. DBZ-themed status screen (mobile 412px layout).
-- **Backend**: Express + tRPC on port 3001.
-- **Database**: Drizzle ORM schema for `notes_index`, `links`, `embeddings` tables.
-- **Vault**: `vault/` with 5 sample notes across folders with `[[wikilinks]]`.
-- **Dev**: `npm run dev` starts both servers via concurrently.
+Vite + React frontend, Express + tRPC backend, Drizzle schema, sample vault, `npm run dev`.
 
-Design mock approved: `design/brain-v10-hud.jsx` (HUD cards + graph toggle, Vegeta-kit palette, portrait slot).
+Design mock approved: `design/brain-v10-hud.jsx`
+
+---
 
 ## Session log
+
+### 2026-07-08 — Task 5 Note CRUD
+**Changed:** Added `notes.*` tRPC procedures, vault read/write module, NoteList/NoteView/NoteEditor components, NOTES/+ NEW action bar, OPEN NOTE from graph.
+
+**Verified:** 38/38 tests pass. Full create/read/update/delete cycle writes valid markdown to vault.
+
+**Raw findings:**
+- Folder change on edit renames file (e.g. `unsorted/foo.md` → `projects/foo.md`)
+- No MySQL required — UI invalidates queries and file-scan picks up new notes immediately
+
+**Next:** Phase 2 — RAG chat (do not start until Phase 1 review).
+
+### 2026-07-08 — Task 4 HUD Screen
+Full HUD layout, portrait upload, battle log, radar. 34 tests at completion.
+
+### 2026-07-08 — Task 3 Graph API + UI
+Graph API + canvas renderer.
+
 ### 2026-07-08 — Task 2 Vault Engine
-Built vault reader, wikilink parser, PL scorer, DB indexer, chokidar watcher, and full `npm run reindex`. 13 tests passing. Ready for Task 3 (Graph API + UI).
+Vault reader, indexer, watcher, reindex.
 
 ### 2026-07-08 — Task 1 Scaffold
-Built full project skeleton: Vite React frontend, tRPC/Express backend, Drizzle/MySQL config, vault with 5 interlinked sample notes. `npm run dev` boots both. Tests pass.
+Project skeleton.
