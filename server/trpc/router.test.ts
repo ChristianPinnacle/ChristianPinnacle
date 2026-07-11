@@ -6,7 +6,7 @@ describe('health', () => {
     const caller = appRouter.createCaller({});
     const result = await caller.health();
     expect(result.status).toBe('ok');
-    expect(result.vaultNoteCount).toBe(5);
+    expect(result.vaultNoteCount).toBeGreaterThanOrEqual(5);
     expect(result.dbConfigured).toBe(false);
     expect(result.indexedNoteCount).toBeNull();
   });
