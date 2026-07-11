@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+import { createWriteStream, existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { getDb } from './db';
 import { buildIndexFromVault } from './lib/vault/indexer';
@@ -13,6 +16,8 @@ import { appRouter } from './trpc/router';
 const PORT = Number(process.env.PORT ?? 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5174';
 const VAULT_DIR = path.resolve(process.cwd(), 'vault');
+const ASSETS_DIR = path.join(VAULT_DIR, 'assets');
+const PORTRAIT_PATH = path.join(ASSETS_DIR, 'portrait.png');
 
 const app = express();
 
@@ -20,14 +25,37 @@ app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use('/vault-assets', express.static(path.join(VAULT_DIR, 'assets')));
 app.use(
   '/trpc',
-  createExpressMiddleware({
-    router: appRouter,
-    createContext,
-  }),
+  createExpressMiddleware({ router: appRouter, createContext }),
 );
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Serve portrait image
+app.get('/assets/portrait', (_req, res) => {
+  if (!existsSync(PORTRAIT_PATH)) {
+    res.status(404).json({ error: 'No portrait uploaded yet' });
+    return;
+  }
+  res.sendFile(PORTRAIT_PATH);
+});
+
+// Upload portrait (raw binary stream, max 5 MB)
+app.post('/assets/portrait', async (req, res) => {
+  try {
+    const contentLength = Number(req.headers['content-length'] ?? 0);
+    if (contentLength > 5 * 1024 * 1024) {
+      res.status(413).json({ error: 'Image too large (max 5 MB)' });
+      return;
+    }
+    await mkdir(ASSETS_DIR, { recursive: true });
+    const out = createWriteStream(PORTRAIT_PATH);
+    await pipeline(req, out);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 async function bootstrapVaultIndex(): Promise<void> {
@@ -36,13 +64,10 @@ async function bootstrapVaultIndex(): Promise<void> {
     console.log('[vault] DATABASE_URL not set — file scan only, watcher disabled.');
     return;
   }
-
   try {
     const index = await buildIndexFromVault(VAULT_DIR);
     await writeVaultIndex(db, index);
-    console.log(
-      `[vault] Initial index — ${index.notes.length} notes, ${index.links.length} links`,
-    );
+    console.log(`[vault] Initial index — ${index.notes.length} notes, ${index.links.length} links`);
     startVaultWatcher(VAULT_DIR);
   } catch (err) {
     console.error('[vault] Initial index failed:', err);

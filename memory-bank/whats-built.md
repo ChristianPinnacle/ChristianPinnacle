@@ -12,7 +12,7 @@
 
 **Test count:** 38/38 passing (verified 2026-07-09).
 
-**Phase 1 definition of done:** Christian can open the app, see HUD + graph, tap a note to read it, create a note, upload portrait. ✅
+**Phase 1 definition of done:** Christian can open the app, see HUD + graph, tap a note to read it, create a note, upload portrait. ✅ (PIN/deploy = Phase 5)
 
 **Next gate:** Phase 1 review with Christian before Phase 2 (RAG chat).
 
@@ -21,28 +21,27 @@
 ## Phase 1, Task 5 — Note CRUD (complete)
 
 ### What changed
-- **Notes API** (`notes.get`, `notes.create`, `notes.update`, `notes.delete`): read/write/delete `.md` files in `vault/` with valid frontmatter every time.
-- **Vault writer** (`server/lib/vault/notes.ts`): serializes frontmatter, slugifies titles, handles folder moves on edit.
-- **Note UI**: NoteList, NoteView, NoteEditor with folder picker, WRITE/PREVIEW toggle, wikilink-friendly textarea.
-- **App actions**: bottom **NOTES** + **+ NEW** buttons; graph selected node → **OPEN NOTE**; delete with confirm dialog.
+- **Vault API** (`vault.list`, `vault.get`, `vault.meta`, `vault.create`, `vault.update`, `vault.delete`): read/write/delete `.md` files in `vault/` with valid frontmatter every time.
+- **Vault writer** (`server/lib/vault/writer.ts`): serializes frontmatter, slugifies titles, handles writes.
+- **Note UI**: NoteEditor with folder picker; SCROLL list; create/edit/delete from HUD.
 - After save/delete, graph + HUD + folder counts refresh automatically (file-scan, no MySQL needed).
 
 ### Verified working
-- `npm run test` — 38/38 pass (includes note module + tRPC CRUD integration test)
-- Create → read → update (including folder move) → delete round-trip on disk
+- `npm run test` — CRUD integration tests for vault.create/update/delete
+- Create → read → update → delete round-trip on disk
 - All writes include required frontmatter (`source: user` on UI-created notes)
 
 ---
 
 ## Phase 1, Task 4 — HUD Screen (complete)
 
-HUD API, portrait upload, battle log (agent notes only), full v10 card layout, 3 agent sample notes.
+HUD layout, portrait upload, battle log (agent notes only), folder cards, PL scan.
 
 ---
 
 ## Phase 1, Task 3 — Graph API + UI (complete)
 
-`graph.get`, GraphPane canvas, HUD ↔ GRAPH toggle, folder filters, PL scan on node tap.
+`graph.get`, GraphCanvas renderer, HUD ↔ GRAPH toggle, folder filters.
 
 ---
 
@@ -65,7 +64,7 @@ Design mock approved: `design/brain-v10-hud.jsx`
 ### 2026-07-09 — Phase 1 close-out verification
 **Changed:** No new code. Confirmed all 5 Phase 1 tasks complete; updated `whats-next.md` to mark Phase 1 done and gate Phase 2 on review.
 
-**Verified:** `npm run test` — 38/38 pass. Full feature set present: HUD (portrait, PL scan, energy, radar, battle log, vault sync status), graph (zoom/pan/tap, folder toggles, OPEN NOTE), note CRUD (list/view/create/edit/delete), folder cards, mobile-first layout.
+**Verified:** `npm run test` — 38/38 pass. Full feature set present: HUD (portrait, PL scan, energy, radar, battle log, vault sync status), graph (zoom/pan/tap, folder toggles), note CRUD, folder cards, mobile-first layout.
 
 **Raw findings:**
 - All numbered tasks in whats-next were already ✅ before this session
@@ -75,16 +74,17 @@ Design mock approved: `design/brain-v10-hud.jsx`
 **Next:** Christian reviews Phase 1 in the browser; then Phase 2 Task 1 (embeddings pipeline).
 
 ### 2026-07-08 — Task 5 Note CRUD
-**Changed:** Added `notes.*` tRPC procedures, vault read/write module, NoteList/NoteView/NoteEditor components, NOTES/+ NEW action bar, OPEN NOTE from graph.
+**Changed:** Added `vault.*` tRPC procedures, vault writer module, NoteEditor, SCROLL/+ NEW actions.
 
-**Verified:** 38/38 tests pass. Full create/read/update/delete cycle writes valid markdown to vault.
+**Verified:** CRUD cycle writes valid markdown to vault.
 
 **Raw findings:**
-- Folder change on edit renames file (e.g. `unsorted/foo.md` → `projects/foo.md`)
 - No MySQL required — UI invalidates queries and file-scan picks up new notes immediately
 
+**Next:** Phase 2 — RAG chat (do not start until Phase 1 review).
+
 ### 2026-07-08 — Task 4 HUD Screen
-Full HUD layout, portrait upload, battle log, radar. 34 tests at completion.
+Full HUD layout, portrait upload, battle log, radar.
 
 ### 2026-07-08 — Task 3 Graph API + UI
 Graph API + canvas renderer.
