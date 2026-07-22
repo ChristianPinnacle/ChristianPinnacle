@@ -19,6 +19,8 @@ Copy `APP_PIN_HASH` + `SESSION_SECRET` into `.env`, restart server.
 ### Definition of done for Phase 5
 App installs on phone, PIN-gated, runs on Railway with persistent vault, real notes imported.
 
+**Status (2026-07-23):** Import ✅ · embeddings ✅ (free-tier throttle) · committed + pushed to `main` ✅ (Railway builds on push). **Remaining to finish deploy:** on Railway set env vars (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, optional `APP_PIN_HASH`/`SESSION_SECRET`); resolve vault-volume seeding (a mounted `/app/vault` volume shadows baked-in notes → add seed-on-boot, or ship vault in image without a volume); then verify install + PIN on phone.
+
 ---
 
 ## Phase 4 — Modes + ingestion ✅ COMPLETE (core)

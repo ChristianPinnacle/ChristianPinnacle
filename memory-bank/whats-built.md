@@ -26,7 +26,11 @@
 - Imported 9 real knowledge files into `vault/resources/`: Pinnacle Soul File (v3.1), Marketing Playbook (Willington), Market Intelligence, Coach Methodologies, Coach Program Library, Competitor Pain Points, Injury Adaptation Research, Architecture Audit, GHL AI Automation. ~38k words total.
 - Overwrote placeholder `pinnacle-soul-file.md` and `marketing-playbook.md` with the real content (titles kept, so existing inbound wikilinks stay intact).
 
-**Verified:** Indexer parse over vault → **18 notes, 41 links, 0 unresolved wikilinks**; all frontmatter valid. Real Marketing Playbook is now the top graph hub (PL ~13,300), Market Intelligence next (~10,300). Reindex → MySQL + Voyage embeddings populated for RAG.
+**Verified:** Indexer parse over vault → **18 notes, 41 links, 0 unresolved wikilinks**; all frontmatter valid. Real Marketing Playbook is now the top graph hub (PL ~13,300), Market Intelligence next (~10,300).
+
+**Embeddings (free-tier throttle):** First reindex hit Voyage `429` — free tier is 3 RPM / 10K TPM (no payment method). Added token-budgeted batching + `EMBED_FREE_TIER=1` mode (`server/lib/rag/retrieve.ts`) that caps each request well under 10K tokens and paces one/min. Re-ran `EMBED_FREE_TIER=1 npm run reindex` → 11 batches (~7.8k tokens each, zero 429s) → **18 notes, 345 chunks embedded**. Scouter RAG now runs on real content. Full suite 79/79 green (relaxed 3 brittle exact-vault-count tests to seed-subset assertions).
+
+**Deploy:** Committed + pushed to `origin/main` (`6f9bb61`) → triggers Railway Dockerfile build. ⚠️ Manual Railway steps remain: set env vars (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, optional PIN); and if a persistent volume is mounted at `/app/vault` it shadows the baked-in notes → needs a seed-on-boot fix or no volume.
 
 **Raw findings:**
 - Wikilinks resolve against note `title` (case-insensitive), not filename — cross-links target existing hub titles (VitalEdge Hub, MFP Campaign, Pinnacle Coaching) so nothing orphans.
