@@ -13,6 +13,11 @@ export function isVoyageConfigured(): boolean {
   return Boolean(process.env.VOYAGE_API_KEY?.trim());
 }
 
+/** Rough token estimate (~4 chars/token) — good enough for batch budgeting. */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
 export async function embedTexts(
   texts: string[],
   inputType: EmbedInputType,

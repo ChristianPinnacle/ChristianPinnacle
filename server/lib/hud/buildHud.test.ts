@@ -21,7 +21,7 @@ describe('buildHudPayload', () => {
   it('returns HUD data with folders, battle log, and radar targets', async () => {
     const hud = await buildHudPayload(VAULT_DIR);
 
-    expect(hud.noteCount).toBe(11);
+    expect(hud.noteCount).toBeGreaterThanOrEqual(11);
     expect(hud.totalPl).toBeGreaterThan(0);
     expect(hud.folders).toHaveLength(6);
     expect(hud.folders.some((folder) => folder.count > 0)).toBe(true);

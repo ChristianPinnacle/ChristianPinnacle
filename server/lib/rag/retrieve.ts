@@ -4,7 +4,7 @@ import * as schema from '../../db/schema';
 import { parseVaultFile } from '../vault/parse';
 import type { VaultIndex } from '../vault/types';
 import { chunkText } from './chunk';
-import { cosineSimilarity, embedTexts, isVoyageConfigured } from './embed';
+import { cosineSimilarity, embedTexts, estimateTokens, isVoyageConfigured } from './embed';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -33,6 +33,48 @@ function parseVector(raw: unknown): number[] {
 }
 
 const EMBED_BATCH_SIZE = 64;
+
+/**
+ * Embedding throttle config. Defaults suit a paid Voyage tier. Set
+ * `EMBED_FREE_TIER=1` to stay inside the free tier's 3 RPM / 10K TPM limits
+ * (each request capped well under 10K tokens, one request per minute).
+ * Individual knobs override the preset.
+ */
+function embedThrottle(): { maxTokensPerRequest: number; intervalMs: number } {
+  const freeTier = process.env.EMBED_FREE_TIER === '1';
+  const maxTokensPerRequest = Number(
+    process.env.EMBED_MAX_TOKENS_PER_REQUEST ?? (freeTier ? 8000 : 100_000),
+  );
+  const intervalMs = Number(
+    process.env.EMBED_REQUEST_INTERVAL_MS ?? (freeTier ? 60_000 : 21_000),
+  );
+  return { maxTokensPerRequest, intervalMs };
+}
+
+/** Greedily pack chunks into batches capped by both token budget and count. */
+function batchByTokenBudget(
+  chunks: PendingChunk[],
+  maxTokensPerRequest: number,
+): PendingChunk[][] {
+  const batches: PendingChunk[][] = [];
+  let current: PendingChunk[] = [];
+  let currentTokens = 0;
+
+  for (const chunk of chunks) {
+    const tokens = estimateTokens(chunk.text);
+    const wouldExceedTokens = currentTokens + tokens > maxTokensPerRequest;
+    const wouldExceedCount = current.length >= EMBED_BATCH_SIZE;
+    if (current.length > 0 && (wouldExceedTokens || wouldExceedCount)) {
+      batches.push(current);
+      current = [];
+      currentTokens = 0;
+    }
+    current.push(chunk);
+    currentTokens += tokens;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
 
 export async function embedVaultNotes(
   db: Db,
@@ -66,16 +108,23 @@ export async function embedVaultNotes(
     return { notesEmbedded: 0, chunksWritten: 0, skipped: false };
   }
 
+  const { maxTokensPerRequest, intervalMs } = embedThrottle();
+  const batches = batchByTokenBudget(pending, maxTokensPerRequest);
+
   const vectors: number[][] = [];
-  for (let i = 0; i < pending.length; i += EMBED_BATCH_SIZE) {
-    const batch = pending.slice(i, i + EMBED_BATCH_SIZE);
+  for (let b = 0; b < batches.length; b += 1) {
+    const batch = batches[b] ?? [];
+    const batchTokens = batch.reduce((sum, c) => sum + estimateTokens(c.text), 0);
+    console.log(
+      `[voyage] batch ${b + 1}/${batches.length} — ${batch.length} chunks, ~${batchTokens} tokens`,
+    );
     const batchVectors = await embedTexts(
       batch.map((c) => c.text),
       'document',
     );
     vectors.push(...batchVectors);
-    if (i + EMBED_BATCH_SIZE < pending.length) {
-      await new Promise((resolve) => setTimeout(resolve, 21_000));
+    if (b + 1 < batches.length) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
   }
 

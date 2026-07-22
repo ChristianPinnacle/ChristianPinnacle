@@ -8,7 +8,7 @@
 1. ~~**PWA**~~ ✅ vite-plugin-pwa · manifest · SW · install icons
 2. ~~**PIN lock**~~ ✅ `APP_PIN_HASH` + session cookie · PinGate · API guard
 3. ~~**Railway deploy**~~ ✅ Dockerfile + railway.json · serves `dist/client` + vault volume
-4. **Real vault import** — seed from Christian’s memory-bank / market intel / competitor files
+4. ~~**Real vault import**~~ ✅ `npm run import:intel` seeds 9 real knowledge files from `Desktop/Intelligence/` → `vault/resources/` (~38k words), cross-linked; reindexed
 
 ### How to enable PIN
 ```

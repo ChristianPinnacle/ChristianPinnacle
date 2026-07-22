@@ -20,6 +20,21 @@
 
 ## Session log
 
+### 2026-07-22 — Phase 5 Task 4: Real vault import
+**Changed:**
+- Added `server/scripts/import-intel.ts` + `npm run import:intel` — repeatable seeder that copies Christian's curated `Desktop/Intelligence/` markdown into the vault with valid frontmatter (`source: import`) and cross-links.
+- Imported 9 real knowledge files into `vault/resources/`: Pinnacle Soul File (v3.1), Marketing Playbook (Willington), Market Intelligence, Coach Methodologies, Coach Program Library, Competitor Pain Points, Injury Adaptation Research, Architecture Audit, GHL AI Automation. ~38k words total.
+- Overwrote placeholder `pinnacle-soul-file.md` and `marketing-playbook.md` with the real content (titles kept, so existing inbound wikilinks stay intact).
+
+**Verified:** Indexer parse over vault → **18 notes, 41 links, 0 unresolved wikilinks**; all frontmatter valid. Real Marketing Playbook is now the top graph hub (PL ~13,300), Market Intelligence next (~10,300). Reindex → MySQL + Voyage embeddings populated for RAG.
+
+**Raw findings:**
+- Wikilinks resolve against note `title` (case-insensitive), not filename — cross-links target existing hub titles (VitalEdge Hub, MFP Campaign, Pinnacle Coaching) so nothing orphans.
+- Skipped 3 non-knowledge meta files in `Intelligence/` (MANUS-PROMPT, PLACEMENT-PROMPT, README consolidation log) — agent prompts, not vault content. Available if wanted.
+- PDF deliverables in `Intelligence/deliverables/` not imported (PDF import still deferred, per Phase 4/Backlog).
+
+**Next:** Phase 5 done bar deploy — push to Railway with the vault volume so it's installable + PIN-gated on phone.
+
 ### 2026-07-20 — Phase 5: PWA + PIN + Railway
 **Changed:**
 - PWA via `vite-plugin-pwa` (manifest, service worker, scouter SVG icons)
