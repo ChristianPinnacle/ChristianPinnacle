@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Saiyan Archive">
+  <rect width="512" height="512" rx="96" fill="#070A18"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#3C58D6" stroke-width="28"/>
+  <circle cx="256" cy="256" r="70" fill="#FF4D4D"/>
+  <circle cx="256" cy="256" r="28" fill="#F5C542"/>
+  <path d="M256 70 L280 180 L256 160 L232 180 Z" fill="#F5C542"/>
+</svg>

@@ -3,6 +3,8 @@ import path from 'node:path';
 import { closeDb, getDb } from '../db';
 import { writeVaultIndex } from '../lib/vault/db';
 import { buildIndexFromVault } from '../lib/vault/indexer';
+import { embedVaultNotes } from '../lib/rag/retrieve';
+import { isVoyageConfigured } from '../lib/rag/embed';
 
 const VAULT_DIR = path.resolve(process.cwd(), 'vault');
 
@@ -27,6 +29,16 @@ async function main(): Promise<void> {
 
   await writeVaultIndex(db, index);
   console.log('[reindex] Database rebuilt from vault (notes_index + wiki links).');
+
+  if (!isVoyageConfigured()) {
+    console.log('[reindex] VOYAGE_API_KEY not set — skipped embeddings.');
+  } else {
+    const embedResult = await embedVaultNotes(db, VAULT_DIR, index);
+    console.log(
+      `[reindex] Embeddings — ${embedResult.notesEmbedded} notes, ${embedResult.chunksWritten} chunks.`,
+    );
+  }
+
   await closeDb();
 }
 

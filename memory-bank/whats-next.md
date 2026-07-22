@@ -1,32 +1,34 @@
 # What's Next
 
-## Current phase: PHASE 1 — Vault + Graph ✅ COMPLETE
+## Current phase: PHASE 5 — Ship 🔨 IN PROGRESS
 
-**Awaiting Phase 1 review** (see START-HERE.md step 6) before starting Phase 2.
+**Phase 4 review:** CREATE + DECIDE done. PDF + idea inbox deferred.
 
-### Task queue (Phase 1 — all done)
-1. ~~**Scaffold**~~ ✅ Done
-2. ~~**Vault engine**~~ ✅ Done
-3. ~~**Graph API + UI**~~ ✅ Done 2026-07-08
-4. ~~**HUD screen**~~ ✅ Done 2026-07-08
-5. ~~**Note CRUD**~~ ✅ Done 2026-07-08
+### Phase 5 task queue
+1. ~~**PWA**~~ ✅ vite-plugin-pwa · manifest · SW · install icons
+2. ~~**PIN lock**~~ ✅ `APP_PIN_HASH` + session cookie · PinGate · API guard
+3. ~~**Railway deploy**~~ ✅ Dockerfile + railway.json · serves `dist/client` + vault volume
+4. **Real vault import** — seed from Christian’s memory-bank / market intel / competitor files
 
-### Definition of done for Phase 1 ✅
-Christian can open the app on his phone, see his notes as the HUD + graph, tap a note to read it, create a note, upload his portrait. No AI yet.
+### How to enable PIN
+```
+npm run pin:hash -- 1234
+```
+Copy `APP_PIN_HASH` + `SESSION_SECRET` into `.env`, restart server.
+
+### Definition of done for Phase 5
+App installs on phone, PIN-gated, runs on Railway with persistent vault, real notes imported.
 
 ---
 
-## Phase 2 — RAG chat (Scouter) — DO NOT START until Phase 1 review
+## Phase 4 — Modes + ingestion ✅ COMPLETE (core)
 
-Planned tasks (to be broken down after review):
-1. **Embeddings pipeline** — chunk + embed on save/reindex, store in MySQL
-2. **invokeLLM** — wire Anthropic wrapper (currently stub)
-3. **ASK mode UI** — retrieve → Claude → answer with citation chips → ignite source nodes on graph
-4. **Node-scoped chat** — "Ask about this" from selected graph node
+## Phase 3 — AI features ✅ COMPLETE
 
-Requires: `DATABASE_URL`, `ANTHROPIC_API_KEY`
+## Phase 2 — RAG chat ✅ COMPLETE
 
-## Phase 3: auto-linking + real PL + summaries. Phase 4: CREATE/DECIDE modes + PDF import. Phase 5: PWA + PIN + Railway deploy + real vault import.
+## Phase 1 — Vault + Graph ✅ COMPLETE
 
 ## Backlog
-Voice capture, image OCR, KPI feeds, GHL/Stripe ingestion, client nodes (security review first), competitor watch, weekly digest.
+- Idea inbox, PDF import, Candice bridge, autonomous web research agent
+- Voice capture, image OCR, KPI feeds, GHL/Stripe, client nodes, competitor watch, weekly digest

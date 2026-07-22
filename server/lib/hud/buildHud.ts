@@ -4,6 +4,7 @@ import { buildGraphPayload } from '../graph/buildGraph';
 import type { GraphNode } from '../graph/buildGraph';
 import { getBattleLog } from './battleLog';
 import { buildIndexFromVault } from '../vault/indexer';
+import { findOrphans } from '../vault/orphans';
 import { VALID_FOLDERS } from '../vault/types';
 
 const FOLDER_COLORS: Record<string, string> = {
@@ -60,6 +61,7 @@ export type HudPayload = {
   portraitUrl: string | null;
   noteCount: number;
   agentCount: number;
+  orphanCount: number;
 };
 
 function hashUnit(value: string): number {
@@ -147,6 +149,7 @@ export async function buildHudPayload(vaultDir: string): Promise<HudPayload> {
   }
 
   const agentSources = new Set(battleLog.map((entry) => entry.source));
+  const orphanCount = findOrphans(index).length;
 
   return {
     totalPl: graph.totalPl,
@@ -159,5 +162,6 @@ export async function buildHudPayload(vaultDir: string): Promise<HudPayload> {
     portraitUrl,
     noteCount: index.notes.length,
     agentCount: agentSources.size,
+    orphanCount,
   };
 }

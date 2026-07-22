@@ -3,6 +3,7 @@ import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { appRouter } from './router';
+import { testContext } from './testContext';
 
 const VAULT_DIR = path.resolve(process.cwd(), 'vault');
 
@@ -15,10 +16,10 @@ afterEach(async () => {
   }
 });
 
-describe('vault.create', () => {
+describe('notes.create', () => {
   it('creates a new note file in the vault', async () => {
-    const caller = appRouter.createCaller({});
-    const result = await caller.vault.create({
+    const caller = appRouter.createCaller(testContext());
+    const result = await caller.notes.create({
       title: 'Test CRUD Note',
       folder: 'unsorted',
       tags: ['test'],
@@ -31,33 +32,35 @@ describe('vault.create', () => {
     expect(existsSync(path.join(VAULT_DIR, result.path))).toBe(true);
   });
 
-  it('rejects duplicate note paths', async () => {
-    const caller = appRouter.createCaller({});
-    const result = await caller.vault.create({
+  it('creates a unique path when title already exists', async () => {
+    const caller = appRouter.createCaller(testContext());
+    const first = await caller.notes.create({
       title: 'Duplicate Note',
       folder: 'unsorted',
       tags: [],
       summary: '',
       body: '',
     });
-    createdPaths.push(result.path);
+    createdPaths.push(first.path);
 
-    await expect(
-      caller.vault.create({
-        title: 'Duplicate Note',
-        folder: 'unsorted',
-        tags: [],
-        summary: '',
-        body: '',
-      }),
-    ).rejects.toThrow();
+    const second = await caller.notes.create({
+      title: 'Duplicate Note',
+      folder: 'unsorted',
+      tags: [],
+      summary: '',
+      body: '',
+    });
+    createdPaths.push(second.path);
+
+    expect(second.path).not.toBe(first.path);
+    expect(existsSync(path.join(VAULT_DIR, second.path))).toBe(true);
   });
 });
 
-describe('vault.update', () => {
+describe('notes.update', () => {
   it('updates the body of an existing note', async () => {
-    const caller = appRouter.createCaller({});
-    const { path: notePath } = await caller.vault.create({
+    const caller = appRouter.createCaller(testContext());
+    const { path: notePath } = await caller.notes.create({
       title: 'Updatable Note',
       folder: 'unsorted',
       tags: [],
@@ -66,18 +69,23 @@ describe('vault.update', () => {
     });
     createdPaths.push(notePath);
 
-    await caller.vault.update({ path: notePath, body: 'updated body' });
+    await caller.notes.update({
+      path: notePath,
+      title: 'Updatable Note',
+      folder: 'unsorted',
+      body: 'updated body',
+    });
 
-    const { content } = await caller.vault.get({ path: notePath });
-    expect(content).toContain('updated body');
-    expect(content).not.toContain('original body');
+    const note = await caller.notes.get({ path: notePath });
+    expect(note.body).toContain('updated body');
+    expect(note.body).not.toContain('original body');
   });
 });
 
-describe('vault.delete', () => {
+describe('notes.delete', () => {
   it('removes the note file from the vault', async () => {
-    const caller = appRouter.createCaller({});
-    const { path: notePath } = await caller.vault.create({
+    const caller = appRouter.createCaller(testContext());
+    const { path: notePath } = await caller.notes.create({
       title: 'Deletable Note',
       folder: 'unsorted',
       tags: [],
@@ -85,7 +93,8 @@ describe('vault.delete', () => {
       body: 'to be deleted',
     });
 
-    await caller.vault.delete({ path: notePath });
+    await caller.notes.delete({ path: notePath });
     expect(existsSync(path.join(VAULT_DIR, notePath))).toBe(false);
   });
 });
+

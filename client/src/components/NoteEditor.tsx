@@ -1,186 +1,172 @@
-import { useEffect, useState } from "react";
-import Frame from "./Frame";
-import { trpc } from "../lib/trpc";
-import {
-  formatTagsInput,
-  parseTagsInput,
-  renderMarkdownPreview,
-  type NoteFolder,
-  VALID_FOLDERS,
-} from "../lib/notes";
-import { FOLDER_LABELS } from "../theme";
+import { useState } from 'react';
 
-type NoteEditorProps = {
-  mode: "create" | "edit";
-  path?: string;
-  onSaved: (path: string) => void;
+const VALID_FOLDERS = [
+  'projects',
+  'areas',
+  'resources',
+  'warroom',
+  'archive',
+  'unsorted',
+] as const;
+
+type Folder = (typeof VALID_FOLDERS)[number];
+
+export interface NoteFormData {
+  title: string;
+  folder: Folder;
+  tags: string[];
+  summary: string;
+  body: string;
+}
+
+interface NoteEditorProps {
+  initial?: Partial<NoteFormData>;
+  notePath?: string;
+  onSave: (data: NoteFormData) => Promise<void>;
+  onDelete?: () => Promise<void>;
   onCancel: () => void;
-};
+}
 
-export default function NoteEditor({ mode, path, onSaved, onCancel }: NoteEditorProps) {
-  const utils = trpc.useUtils();
-  const existing = trpc.notes.get.useQuery(
-    { path: path ?? "" },
-    { enabled: mode === "edit" && Boolean(path) },
-  );
+type EditorTab = 'write' | 'preview';
 
-  const createNote = trpc.notes.create.useMutation({
-    onSuccess: async (note) => {
-      await invalidateAll(utils);
-      onSaved(note.path);
-    },
-  });
+function renderPreview(body: string): string {
+  return body
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\[\[(.+?)(?:\|.+?)?\]\]/g, '<span class="wikilink">[[$1]]</span>')
+    .replace(/\n/g, '<br/>');
+}
 
-  const updateNote = trpc.notes.update.useMutation({
-    onSuccess: async (note) => {
-      await invalidateAll(utils);
-      onSaved(note.path);
-    },
-  });
+export function NoteEditor({ initial, notePath, onSave, onDelete, onCancel }: NoteEditorProps) {
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [folder, setFolder] = useState<Folder>(initial?.folder ?? 'unsorted');
+  const [tagsRaw, setTagsRaw] = useState((initial?.tags ?? []).join(', '));
+  const [summary, setSummary] = useState(initial?.summary ?? '');
+  const [body, setBody] = useState(initial?.body ?? '');
+  const [tab, setTab] = useState<EditorTab>('write');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [title, setTitle] = useState("");
-  const [folder, setFolder] = useState<NoteFolder>("unsorted");
-  const [summary, setSummary] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
-  const [body, setBody] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
-  const [loadedPath, setLoadedPath] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (mode === "edit" && existing.data && existing.data.path !== loadedPath) {
-      setTitle(existing.data.title);
-      setFolder(existing.data.folder as NoteFolder);
-      setSummary(existing.data.summary);
-      setTagsInput(formatTagsInput(existing.data.tags));
-      setBody(existing.data.body);
-      setLoadedPath(existing.data.path);
+  const handleSave = async () => {
+    if (!title.trim()) { setError('Title is required'); return; }
+    setError(null);
+    setSaving(true);
+    try {
+      const tags = tagsRaw
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      await onSave({ title: title.trim(), folder, tags, summary: summary.trim(), body });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
     }
-  }, [mode, existing.data, loadedPath]);
+  };
 
-  const saving = createNote.isPending || updateNote.isPending;
-  const error = createNote.error ?? updateNote.error ?? existing.error;
-
-  const handleSave = (): void => {
-    const payload = {
-      title,
-      folder,
-      body,
-      summary,
-      tags: parseTagsInput(tagsInput),
-    };
-
-    if (mode === "create") {
-      createNote.mutate(payload);
-      return;
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    setDeleting(true);
+    try {
+      await onDelete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+      setDeleting(false);
     }
-
-    if (!path) return;
-    updateNote.mutate({ path, ...payload });
   };
 
   return (
-    <section className="note-screen">
-      <div className="note-screen-header">
-        <button type="button" className="ghost-btn" onClick={onCancel} disabled={saving}>
-          ← CANCEL
-        </button>
-        <h2>{mode === "create" ? "NEW NOTE" : "EDIT NOTE"}</h2>
+    <div className="note-editor">
+      <div className="editor-header">
+        <span className="editor-title">{notePath ? 'EDIT NOTE' : 'NEW NOTE'}</span>
+        <button className="close-btn" onClick={onCancel}>✕</button>
       </div>
 
-      {mode === "edit" && existing.isLoading && <p className="status">Loading note...</p>}
-      {error && <p className="status error">{error.message}</p>}
+      {error && <p className="editor-error">{error}</p>}
 
-      {(mode === "create" || existing.data) && (
-        <Frame accent="#F5C542">
-          <div className="note-form">
-            <label className="field">
-              <span>Title</span>
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Note title"
-              />
-            </label>
+      <div className="editor-fields">
+        <input
+          className="editor-input"
+          placeholder="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
 
-            <label className="field">
-              <span>Folder</span>
-              <select value={folder} onChange={(event) => setFolder(event.target.value as NoteFolder)}>
-                {VALID_FOLDERS.map((folderId) => (
-                  <option key={folderId} value={folderId}>
-                    {FOLDER_LABELS[folderId]} ({folderId})
-                  </option>
-                ))}
-              </select>
-            </label>
+        <select
+          className="editor-select"
+          value={folder}
+          onChange={(e) => setFolder(e.target.value as Folder)}
+        >
+          {VALID_FOLDERS.map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
 
-            <label className="field">
-              <span>Summary</span>
-              <input
-                value={summary}
-                onChange={(event) => setSummary(event.target.value)}
-                placeholder="One-line summary"
-              />
-            </label>
+        <input
+          className="editor-input"
+          placeholder="Tags (blank = auto)"
+          value={tagsRaw}
+          onChange={(e) => setTagsRaw(e.target.value)}
+        />
 
-            <label className="field">
-              <span>Tags (comma separated)</span>
-              <input
-                value={tagsInput}
-                onChange={(event) => setTagsInput(event.target.value)}
-                placeholder="marketing, vitaledge"
-              />
-            </label>
+        <input
+          className="editor-input"
+          placeholder="Summary (blank = auto)"
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+        />
+      </div>
 
-            <div className="editor-toggle">
-              <button
-                type="button"
-                className={`ghost-btn${!showPreview ? " active" : ""}`}
-                onClick={() => setShowPreview(false)}
-              >
-                WRITE
-              </button>
-              <button
-                type="button"
-                className={`ghost-btn${showPreview ? " active" : ""}`}
-                onClick={() => setShowPreview(true)}
-              >
-                PREVIEW
-              </button>
-            </div>
+      <div className="editor-tab-bar">
+        <button
+          className={`editor-tab ${tab === 'write' ? 'editor-tab-active' : ''}`}
+          onClick={() => setTab('write')}
+        >WRITE</button>
+        <button
+          className={`editor-tab ${tab === 'preview' ? 'editor-tab-active' : ''}`}
+          onClick={() => setTab('preview')}
+        >PREVIEW</button>
+      </div>
 
-            {showPreview ? (
-              <article
-                className="note-preview"
-                dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(body) }}
-              />
-            ) : (
-              <label className="field">
-                <span>Body (markdown)</span>
-                <textarea
-                  value={body}
-                  onChange={(event) => setBody(event.target.value)}
-                  rows={12}
-                  placeholder="Write markdown. Use [[Note Title]] for links."
-                />
-              </label>
-            )}
-
-            <button type="button" className="primary-btn full-width" onClick={handleSave} disabled={saving}>
-              {saving ? "SAVING..." : "SAVE NOTE"}
-            </button>
-          </div>
-        </Frame>
+      {tab === 'write' ? (
+        <textarea
+          className="editor-textarea"
+          placeholder="Write your note here. Use [[Note Title]] to link to other notes."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={10}
+        />
+      ) : (
+        <div
+          className="editor-preview"
+          dangerouslySetInnerHTML={{ __html: renderPreview(body) || '<em style="opacity:0.4">Nothing to preview yet.</em>' }}
+        />
       )}
-    </section>
-  );
-}
 
-async function invalidateAll(utils: ReturnType<typeof trpc.useUtils>): Promise<void> {
-  await Promise.all([
-    utils.vault.list.invalidate(),
-    utils.graph.get.invalidate(),
-    utils.hud.get.invalidate(),
-    utils.health.invalidate(),
-    utils.notes.get.invalidate(),
-  ]);
+      <div className="editor-actions">
+        <button className="editor-btn-save" onClick={() => void handleSave()} disabled={saving}>
+          {saving ? 'SAVING…' : 'SAVE NOTE'}
+        </button>
+        {onDelete && (
+          <button
+            className={`editor-btn-delete ${confirmDelete ? 'editor-btn-confirm' : ''}`}
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+          >
+            {deleting ? 'DELETING…' : confirmDelete ? 'CONFIRM?' : 'DELETE'}
+          </button>
+        )}
+        <button className="editor-btn-cancel" onClick={onCancel}>CANCEL</button>
+      </div>
+    </div>
+  );
 }

@@ -71,9 +71,14 @@ export async function scanVault(vaultDir: string): Promise<ParsedNote[]> {
       if (entry.isDirectory()) {
         await walk(fullPath);
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        const relativePath = path.relative(vaultDir, fullPath);
-        const rawContent = await readFile(fullPath, 'utf-8');
-        notes.push(parseVaultFile(relativePath, rawContent));
+        const relativePath = path.relative(vaultDir, fullPath).replace(/\\/g, '/');
+        try {
+          const rawContent = await readFile(fullPath, 'utf-8');
+          notes.push(parseVaultFile(relativePath, rawContent));
+        } catch (err) {
+          // Skip files deleted mid-scan (parallel tests / editor races)
+          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        }
       }
     }
   }

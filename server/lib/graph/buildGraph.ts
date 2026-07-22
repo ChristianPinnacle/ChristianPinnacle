@@ -19,7 +19,9 @@ export type GraphNode = {
 export type GraphEdge = {
   source: string;
   target: string;
-  type: 'wiki';
+  type: 'wiki' | 'ai';
+  confidence?: number;
+  accepted?: boolean | null;
 };
 
 export type GraphFolder = {
@@ -97,7 +99,7 @@ export function buildGraphPayload(index: VaultIndex): GraphPayload {
   const edges: GraphEdge[] = index.links.map((link) => ({
     source: link.sourcePath,
     target: link.targetPath,
-    type: 'wiki',
+    type: 'wiki' as const,
   }));
 
   const folders: GraphFolder[] = VALID_FOLDERS.filter(
@@ -112,4 +114,31 @@ export function buildGraphPayload(index: VaultIndex): GraphPayload {
   const totalPl = nodes.reduce((sum, node) => sum + node.plScore, 0);
 
   return { nodes, edges, folders, totalPl };
+}
+
+export function mergeAiEdges(
+  payload: GraphPayload,
+  aiEdges: Array<{
+    source: string;
+    target: string;
+    type: 'ai';
+    confidence: number;
+    accepted: boolean | null;
+  }>,
+): GraphPayload {
+  const nodeIds = new Set(payload.nodes.map((n) => n.id));
+  const extra: GraphEdge[] = aiEdges
+    .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+    .map((e) => ({
+      source: e.source,
+      target: e.target,
+      type: 'ai' as const,
+      confidence: e.confidence,
+      accepted: e.accepted,
+    }));
+
+  return {
+    ...payload,
+    edges: [...payload.edges, ...extra],
+  };
 }
