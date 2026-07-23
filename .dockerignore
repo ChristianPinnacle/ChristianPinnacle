@@ -1,0 +1,17 @@
+# Never copy host build artifacts / deps into the image — the Dockerfile
+# installs Linux deps and builds fresh. Copying host node_modules (Windows
+# binaries) over the Linux install breaks `npm run build`.
+node_modules
+dist
+
+# Secrets & local env — must not be baked into image layers
+.env
+.env.*
+
+# VCS / editor / OS cruft
+.git
+.gitignore
+*.log
+.DS_Store
+.claude
+.cursor
