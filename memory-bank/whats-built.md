@@ -30,7 +30,11 @@
 
 **Embeddings (free-tier throttle):** First reindex hit Voyage `429` — free tier is 3 RPM / 10K TPM (no payment method). Added token-budgeted batching + `EMBED_FREE_TIER=1` mode (`server/lib/rag/retrieve.ts`) that caps each request well under 10K tokens and paces one/min. Re-ran `EMBED_FREE_TIER=1 npm run reindex` → 11 batches (~7.8k tokens each, zero 429s) → **18 notes, 345 chunks embedded**. Scouter RAG now runs on real content. Full suite 79/79 green (relaxed 3 brittle exact-vault-count tests to seed-subset assertions).
 
-**Deploy:** Committed + pushed to `origin/main` (`6f9bb61`) → triggers Railway Dockerfile build. ⚠️ Manual Railway steps remain: set env vars (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, optional PIN); and if a persistent volume is mounted at `/app/vault` it shadows the baked-in notes → needs a seed-on-boot fix or no volume.
+**Deploy:** Committed + pushed to `origin/main` → triggers Railway Dockerfile build.
+
+**Vault seed-on-boot (fixes the empty-deploy trap):** The runtime image never copied `vault/` at all, and a Railway volume at `/app/vault` would shadow it anyway — so a deploy would boot with zero notes. Fixed: Dockerfile now bakes `vault/` → `vault-seed/`; `server/lib/vault/seed.ts` (`seedVaultIfEmpty`) copies seed → vault on boot **only when the live vault has no markdown**, so fresh deploys start with real notes and redeploys never clobber user edits. 3 unit tests; suite now 82/82.
+
+⚠️ Manual Railway steps still required: set env vars (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, optional `APP_PIN_HASH`/`SESSION_SECRET`). Then verify install + PIN on phone.
 
 **Raw findings:**
 - Wikilinks resolve against note `title` (case-insensitive), not filename — cross-links target existing hub titles (VitalEdge Hub, MFP Campaign, Pinnacle Coaching) so nothing orphans.

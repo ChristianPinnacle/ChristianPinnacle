@@ -10,6 +10,7 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { getDb } from './db';
 import { buildIndexFromVault } from './lib/vault/indexer';
 import { writeVaultIndex } from './lib/vault/db';
+import { seedVaultIfEmpty } from './lib/vault/seed';
 import { startVaultWatcher } from './lib/vault/watcher';
 import { createContext } from './trpc/context';
 import { appRouter } from './trpc/router';
@@ -17,6 +18,7 @@ import { appRouter } from './trpc/router';
 const PORT = Number(process.env.PORT ?? 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5174';
 const VAULT_DIR = path.resolve(process.cwd(), 'vault');
+const SEED_DIR = path.resolve(process.cwd(), 'vault-seed');
 const ASSETS_DIR = path.join(VAULT_DIR, 'assets');
 const PORTRAIT_PATH = path.join(ASSETS_DIR, 'portrait.png');
 const CLIENT_DIST = path.resolve(process.cwd(), 'dist/client');
@@ -72,6 +74,14 @@ if (existsSync(CLIENT_DIST)) {
 }
 
 async function bootstrapVaultIndex(): Promise<void> {
+  try {
+    if (await seedVaultIfEmpty(VAULT_DIR, SEED_DIR)) {
+      console.log('[vault] Empty vault — seeded notes from baked-in vault-seed/.');
+    }
+  } catch (err) {
+    console.error('[vault] Seed failed:', err);
+  }
+
   const db = getDb();
   if (!db) {
     console.log('[vault] DATABASE_URL not set — file scan only, watcher disabled.');
