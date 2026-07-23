@@ -17,9 +17,10 @@ COPY server ./server
 COPY drizzle.config.ts ./drizzle.config.ts
 COPY tsconfig.json ./tsconfig.json
 # Bake the vault as a seed at a non-mount path. On boot the server copies it
-# into /app/vault when that (volume-mounted) dir is still empty — so a fresh
-# deploy starts with real notes and redeploys never clobber user edits.
+# into /app/vault when that dir is still empty — so a fresh deploy starts with
+# real notes and redeploys never clobber user edits. Persistence (if wanted) is
+# via a Railway Volume mounted at /app/vault in the dashboard — NOT a Dockerfile
+# VOLUME, which Railway's builder rejects.
 COPY vault ./vault-seed
-VOLUME ["/app/vault"]
 EXPOSE 3001
 CMD ["npx", "tsx", "server/index.ts"]
