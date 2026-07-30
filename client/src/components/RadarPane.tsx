@@ -57,12 +57,12 @@ export default function RadarPane({ targets, threatLevel }: RadarPaneProps) {
                 style={{ animationDelay: `${i * 0.3}s` }}
               />
             ))}
-            {[
+            {([
               [6, 6, 1, 1],
               [94, 6, -1, 1],
               [94, 94, -1, -1],
               [6, 94, 1, -1],
-            ].map(([x, y, sx, sy], i) => (
+            ] as const).map(([x, y, sx, sy], i) => (
               <path
                 key={i}
                 d={`M${x} ${y + sy * 10} L${x} ${y} L${x + sx * 10} ${y}`}

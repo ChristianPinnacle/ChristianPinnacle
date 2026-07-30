@@ -8,6 +8,15 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 const COOKIE_NAME = 'sa_session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SCRYPT_KEYLEN = 64;
+const PIN_FAILURE_LIMIT = 5;
+const PIN_BLOCK_MS = 15 * 60 * 1000;
+
+type PinAttemptState = {
+  failures: number;
+  blockedUntil: number;
+};
+
+const pinAttempts = new Map<string, PinAttemptState>();
 
 export { COOKIE_NAME, SESSION_TTL_MS };
 
@@ -18,8 +27,56 @@ export function isPinConfigured(): boolean {
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
   if (secret) return secret;
+  if (process.env.NODE_ENV === 'production' && isPinConfigured()) {
+    throw new Error(
+      'SESSION_SECRET is required in production when APP_PIN_HASH is configured',
+    );
+  }
   // Dev fallback — production must set SESSION_SECRET
   return 'saiyan-dev-session-secret-change-me';
+}
+
+export function assertAuthConfiguration(): void {
+  if (isPinConfigured()) {
+    sessionSecret();
+  }
+}
+
+export function checkPinRateLimit(
+  key: string,
+  now = Date.now(),
+): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const state = pinAttempts.get(key);
+  if (!state || state.blockedUntil <= now) {
+    if (state?.blockedUntil && state.blockedUntil <= now) {
+      pinAttempts.delete(key);
+    }
+    return { allowed: true };
+  }
+
+  return {
+    allowed: false,
+    retryAfterSeconds: Math.ceil((state.blockedUntil - now) / 1000),
+  };
+}
+
+export function recordPinAttempt(
+  key: string,
+  succeeded: boolean,
+  now = Date.now(),
+): void {
+  if (succeeded) {
+    pinAttempts.delete(key);
+    return;
+  }
+
+  const previous = pinAttempts.get(key);
+  const failures = (previous?.failures ?? 0) + 1;
+  pinAttempts.set(key, {
+    failures,
+    blockedUntil:
+      failures >= PIN_FAILURE_LIMIT ? now + PIN_BLOCK_MS : previous?.blockedUntil ?? 0,
+  });
 }
 
 /** Format: scrypt$saltHex$hashHex */

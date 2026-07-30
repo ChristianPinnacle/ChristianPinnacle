@@ -11,7 +11,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm install tsx
+RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY drizzle.config.ts ./drizzle.config.ts

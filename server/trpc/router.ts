@@ -4,7 +4,10 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import { readdir } from 'node:fs/promises';
 import { z } from 'zod';
 import {
+  checkPinRateLimit,
   COOKIE_NAME,
+  isPinConfigured,
+  recordPinAttempt,
   SESSION_TTL_MS,
   unlockWithPin,
 } from '../lib/auth/pin';
@@ -26,6 +29,11 @@ import { isVoyageConfigured } from '../lib/rag/embed';
 import { embedNotePath, retrieveChunks } from '../lib/rag/retrieve';
 import { enrichNoteIfNeeded } from '../lib/rag/enrichNote';
 import { isAnthropicConfigured } from '../lib/invokeLLM';
+import { PORTRAIT_PATH, VAULT_DIR } from '../lib/paths';
+import {
+  generateWeeklyDigest,
+  writeWeeklyDigest,
+} from '../lib/digest/weeklyDigest';
 import { readVaultIndexFromDb, writeVaultIndex } from '../lib/vault/db';
 import { buildIndexFromVault } from '../lib/vault/indexer';
 import {
@@ -45,7 +53,9 @@ import type { Context } from './context';
 const t = initTRPC.context<Context>().create();
 
 const pinGuard = t.middleware(({ ctx, next, path }) => {
-  if (path === 'health' || path === 'echo' || path.startsWith('auth.')) {
+  // Only the unlock flow is public. Railway probes the unauthenticated
+  // Express `/health` route instead of this one, which reports note counts.
+  if (path.startsWith('auth.')) {
     return next();
   }
   if (ctx.pinRequired && !ctx.unlocked) {
@@ -55,9 +65,6 @@ const pinGuard = t.middleware(({ ctx, next, path }) => {
 });
 
 const procedure = t.procedure.use(pinGuard);
-
-const VAULT_DIR = path.resolve(process.cwd(), 'vault');
-const PORTRAIT_PATH = path.join(VAULT_DIR, 'assets', 'portrait.png');
 
 const portraitMimeSchema = z.enum(['image/png', 'image/jpeg', 'image/webp']);
 
@@ -137,7 +144,17 @@ export const appRouter = t.router({
     unlock: procedure
       .input(z.object({ pin: z.string().min(4).max(8) }))
       .mutation(({ ctx, input }) => {
+        const rateLimitKey = ctx.req.ip || 'unknown';
+        const rateLimit = checkPinRateLimit(rateLimitKey);
+        if (!rateLimit.allowed) {
+          throw new TRPCError({
+            code: 'TOO_MANY_REQUESTS',
+            message: `Too many attempts. Try again in ${rateLimit.retryAfterSeconds}s.`,
+          });
+        }
+
         const result = unlockWithPin(input.pin);
+        recordPinAttempt(rateLimitKey, result.ok);
         if (!result.ok) {
           throw new TRPCError({ code: 'UNAUTHORIZED', message: result.reason });
         }
@@ -180,6 +197,7 @@ export const appRouter = t.router({
       dbConfigured: Boolean(db),
       voyageConfigured: isVoyageConfigured(),
       anthropicConfigured: isAnthropicConfigured(),
+      pinConfigured: isPinConfigured(),
     };
   }),
 
@@ -389,6 +407,33 @@ export const appRouter = t.router({
     delete: procedure
       .input(z.object({ path: z.string().min(1) }))
       .mutation(async ({ input }) => deleteNote(VAULT_DIR, input.path)),
+  }),
+
+  digest: t.router({
+    preview: procedure.query(async () => {
+      const digest = await generateWeeklyDigest(VAULT_DIR);
+      return {
+        title: digest.title,
+        notePath: digest.notePath,
+        periodStart: digest.periodStart,
+        periodEnd: digest.periodEnd,
+        touchedCount: digest.recentNotes.length,
+        warroomCount: digest.warroomNotes.length,
+        orphanCount: digest.orphanCount,
+        body: digest.body,
+      };
+    }),
+
+    write: procedure.mutation(async () => {
+      const digest = await writeWeeklyDigest(VAULT_DIR);
+      await afterNoteWrite(digest.notePath);
+      return {
+        ok: true as const,
+        path: digest.notePath,
+        title: digest.title,
+        touchedCount: digest.recentNotes.length,
+      };
+    }),
   }),
 
   portrait: t.router({

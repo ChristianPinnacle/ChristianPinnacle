@@ -9,11 +9,11 @@ type EditorMode = { mode: "create" } | { mode: "edit"; notePath: string };
 type ChatMode = "ask" | "create" | "decide";
 
 const FOLDERS = [
-  { key: "projects", rank: "ELITE", label: "Current Projects", icon: "✦" },
-  { key: "areas", rank: "ROYAL", label: "Areas", icon: "♛" },
-  { key: "resources", rank: "CAPSULE", label: "Resources", icon: "⬡" },
-  { key: "warroom", rank: "WAR ROOM", label: "Decisions", icon: "⊕" },
-  { key: "archive", rank: "GRAVEYARD", label: "Archive", icon: "✙" },
+  { key: "projects", rank: "ELITE", label: "Current Projects", icon: "✦", error: false },
+  { key: "areas", rank: "ROYAL", label: "Areas", icon: "♛", error: false },
+  { key: "resources", rank: "CAPSULE", label: "Resources", icon: "⬡", error: false },
+  { key: "warroom", rank: "WAR ROOM", label: "Decisions", icon: "⊕", error: false },
+  { key: "archive", rank: "GRAVEYARD", label: "Archive", icon: "✙", error: false },
   { key: "unsorted", rank: "SCOUTER ERROR", label: "Unsorted", icon: "⚡", error: true },
 ] as const;
 
@@ -56,6 +56,7 @@ export default function App() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [createTitle, setCreateTitle] = useState<string | null>(null);
   const [chatScope, setChatScope] = useState<{ path: string; title: string } | null>(null);
+  const [digestNote, setDigestNote] = useState<string | null>(null);
   const [citations, setCitations] = useState<
     Array<{ path: string; title: string; score: number; excerpt: string }>
   >([]);
@@ -64,6 +65,7 @@ export default function App() {
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
+  const authStatus = trpc.auth.status.useQuery();
   const health = trpc.health.useQuery();
   const hud = trpc.hud.get.useQuery();
   const graph = trpc.graph.get.useQuery();
@@ -108,6 +110,22 @@ export default function App() {
   const uploadPortrait = trpc.portrait.upload.useMutation({
     onSuccess: () => {
       void utils.hud.get.invalidate();
+    },
+  });
+  const writeDigest = trpc.digest.write.useMutation({
+    onSuccess: async (result) => {
+      setDigestNote(`Filed ${result.title} — ${result.touchedCount} notes touched`);
+      await Promise.all([
+        utils.vault.list.invalidate(),
+        utils.hud.get.invalidate(),
+        utils.graph.get.invalidate(),
+      ]);
+    },
+    onError: (err) => setDigestNote(err.message),
+  });
+  const lockApp = trpc.auth.lock.useMutation({
+    onSuccess: async () => {
+      await utils.auth.status.invalidate();
     },
   });
 
@@ -342,6 +360,16 @@ export default function App() {
           >
             ＋
           </button>
+          {authStatus.data?.pinRequired && (
+            <button
+              type="button"
+              className="sa-tab sa-lock-tab"
+              disabled={lockApp.isPending}
+              onClick={() => lockApp.mutate()}
+            >
+              LOCK
+            </button>
+          )}
         </div>
       </header>
 
@@ -709,6 +737,25 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {view === "hud" && !loading && !editor && (
+        <div className="sa-digest-card">
+          <button
+            type="button"
+            className="sa-digest-btn"
+            disabled={writeDigest.isPending}
+            onClick={() => {
+              setDigestNote(null);
+              writeDigest.mutate();
+            }}
+          >
+            {writeDigest.isPending ? "SCANNING…" : "WEEKLY DIGEST"}
+          </button>
+          <span className="sa-digest-status">
+            {digestNote ?? "Files a War Room summary of this week's vault activity."}
+          </span>
         </div>
       )}
 

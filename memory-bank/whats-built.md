@@ -20,6 +20,69 @@
 
 ## Session log
 
+### 2026-07-30 — Backlog batch: dead-code removal, weekly digest, Git mirror
+**Changed:**
+- **Deleted the duplicate server stack** (`server/vault/*`, `server/routers/*`, `server/context.ts`, `server/trpc.ts`) plus the broken root `scripts/reindex.ts`, which imported a `connectDb` that no longer exists. Nothing live imported any of it — every `../vault/*` import inside `server/lib/` resolves to `server/lib/vault/`. This removes the divergent parser that accepted `[[Title#heading]]`, so agents can no longer follow the wrong contract.
+- **Weekly digest (backlog D9)** — `server/lib/digest/weeklyDigest.ts`, deliberately LLM-free and deterministic: it reports the last 7 days of vault activity, War Room movement, strongest hubs, orphans, and unresolved wikilinks. Writes one note per period at `warroom/weekly-digest-YYYY-MM-DD.md`, overwriting on re-run rather than piling up drafts. Exposed as `digest.preview` (read-only) and `digest.write`, `npm run digest`, and a tap-based WEEKLY DIGEST button on the HUD.
+- **Vault → private Git mirror (backlog B1)** — `server/lib/vault/gitMirror.ts`, off unless `VAULT_GIT_SYNC=1`, with `VAULT_GIT_DRY_RUN=1` to verify configuration before it touches the network. Hooked into the chokidar watcher on its own ~5-minute debounce, so bursts of edits collapse into one commit. Remote URLs are redacted in logs and error messages so a token in the URL cannot leak.
+
+**Verified:** typecheck green; suite 93/93 (75 after the deletion removed 13 duplicate-stack tests, then +18 new digest and mirror tests). Ran `npm run digest` against the real vault → wrote a valid note (`19 notes · 0 errors · 0 warnings`) that links to real hubs, so the digest is not itself an orphan. Git mirror dry-run verified against a temporary repo: detected the change, logged a redacted remote, committed nothing.
+
+**Raw findings:**
+- One digest test assertion was wrong, not the code: `Stale` legitimately appears in the all-time hubs/orphans sections, so the weekly-window assertion now scopes to the "Touched this week" section.
+- The mirror deliberately does no repo setup and invents no credentials. Turning it on is a one-time manual `git init` + remote step, documented in `.env.example`.
+- Root `src/` (15 files) is also fully superseded by `client/src` but is outside `tsconfig`/`vitest` scope, so it causes no type or test confusion. Left for a separate decision.
+
+**Next:** Railway cutover remains the only thing blocking Phase 5 sign-off.
+
+### 2026-07-30 — Tech-debt batch: typecheck, CI, paths
+**Changed:**
+- `npx tsc --noEmit` is green for the first time (was 14 errors, violating the strict-TS rule). Fixes: exported a single `Database` type from `server/db/index.ts` (the two `mysql2` `Pool` types no longer clash), folder label/colour lookups now have explicit fallbacks under `noUncheckedIndexedAccess`, `GraphPane` hit-testing uses a `for…of` loop so control-flow analysis sees the assignment, `RadarPane` corner data is `as const` tuples, `FOLDERS` entries all carry `error`, and the dead `server/context.ts` import path was corrected.
+- Added `npm run typecheck` and `.github/workflows/ci.yml` (typecheck → vault validation → tests → client build). DB/AI tests self-skip without secrets, so CI needs no keys.
+- Added `server/lib/paths.ts` as the single source for `VAULT_DIR` / `VAULT_SEED_DIR` / `CLIENT_DIST_DIR` / `MIGRATIONS_DIR`, all env-overridable — the vault volume no longer has to be mounted at `/app/vault`.
+- `CLIENT_ORIGIN` now accepts a comma-separated list, so a Railway URL and a custom domain can both hold cookies.
+- Tightened `pinGuard` to exempt only `auth.*`; tRPC `health` (which reports note/embedding counts) is now behind the PIN, while Railway keeps probing the public Express `/health`.
+
+**Verified:** `npx tsc --noEmit` exits 0; full suite 87/87 then 88/88 with a new pinGuard test asserting `health` and `vault.list` reject while locked and `auth.status` stays reachable.
+
+**Raw findings:**
+- `server/vault/*`, `server/routers/*`, `server/context.ts`, and `server/trpc.ts` are an unreachable duplicate of the live stack, and the duplicate parser accepts `[[Title#heading]]` while the live one does not. Left in place pending Christian's go-ahead to delete, since removing files also removes their tests.
+- `embedVaultNotes` deletes and re-embeds the whole vault on every run, so a boot-time embedding hook would re-bill Voyage on each redeploy. A one-off `npm run reindex` stays the correct production path.
+
+**Next:** Decide on deleting the duplicate server stack; then Railway cutover.
+
+### 2026-07-30 — Phase 5 autonomous ship hardening
+**Changed:**
+- `/health` now reports boot readiness (`seeded`/`migrated`/`indexed`) and returns 503 until ready; SIGTERM/SIGINT close the watcher + MySQL pool; legacy unauthenticated `/assets/portrait` routes removed (tRPC + guarded `/vault-assets` only).
+- PinGate refreshes session status on focus/reconnect; mobile safe-area padding applied to chat chrome.
+- Added automatic Drizzle migrations on server boot and before `npm run reindex`; the baseline migration is safe against pre-existing derived tables.
+- Made `tsx` a production dependency so the Docker runtime no longer installs packages at image build time outside `npm ci`.
+- Added Railway `/health` checks and expanded health output with database/PIN configuration flags.
+- Removed service-worker runtime caching of authenticated tRPC and vault responses, and delete the legacy `sa-api` cache on client startup.
+- Protected legacy portrait/vault asset routes behind the PIN session when PIN protection is enabled.
+- Hardened PIN auth: production requires `SESSION_SECRET`; five failed attempts trigger a 15-minute in-memory block.
+- Added a visible mobile LOCK control that clears the session and returns to PinGate.
+- Added raster 180/192/512 PNG PWA icons and wired the iOS touch icon + manifest.
+- Added `AGENT-WRITE-CONTRACT.md`, `npm run validate:vault`, validation tests, and Railway/phone/agent setup instructions in `START-HERE.md`.
+
+**Verified:**
+- Existing migration applied successfully to the configured MySQL database (`MIGRATIONS_OK`).
+- Vault validation: 18 notes, 0 errors, 0 unresolved-link warnings.
+- Focused auth/health/validation tests: 17/17 pass.
+- Full test suite: 87/87 pass.
+- Production PWA build passes; generated manifest uses PNG icons and generated service worker has no tRPC/vault runtime routes.
+- Server smoke: migrations applied, 18 notes / 41 links indexed, watcher started, and `/health` returned database/PIN configuration flags.
+- IDE diagnostics and `git diff --check`: clean.
+
+**Raw findings:**
+- The previous service worker cached authenticated API/vault responses under `sa-api`; locking the UI did not guarantee cached data was removed.
+- Raw `/vault-assets` and legacy `/assets/portrait` Express routes were outside the tRPC PIN middleware.
+- Docker previously ran `npm install tsx` after `npm ci`, making runtime dependencies less deterministic.
+- Docker is not installed on this Windows workstation, so the final image could not be built locally. The Vite production build and production dependency tree were verified instead.
+- Live Railway variables, volume mounting, one-off production embedding, HTTPS smoke testing, and phone installation require Christian's Railway/phone access.
+
+**Next:** Configure Railway variables + `/app/vault` volume, deploy, run one production reindex if embeddings are empty, then complete phone install/PIN smoke QA.
+
 ### 2026-07-22 — Phase 5 Task 4: Real vault import
 **Changed:**
 - Added `server/scripts/import-intel.ts` + `npm run import:intel` — repeatable seeder that copies Christian's curated `Desktop/Intelligence/` markdown into the vault with valid frontmatter (`source: import`) and cross-links.

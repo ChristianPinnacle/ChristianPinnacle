@@ -369,15 +369,15 @@ export default function GraphPane({
     let best: SimNode | null = null;
     let bestDistance = 14 / viewRef.current.k;
 
-    graph.nodes.forEach((node) => {
-      if (hiddenFolders[node.folder]) return;
+    for (const node of graph.nodes) {
+      if (hiddenFolders[node.folder]) continue;
       const distance = Math.hypot(node.x - world.x, node.y - world.y);
       const hitRadius = Math.max(node.r + 4, bestDistance);
       if (distance < hitRadius && (!best || distance < bestDistance)) {
         best = node;
         bestDistance = distance;
       }
-    });
+    }
 
     onSelect(best?.id ?? null);
   };

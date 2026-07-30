@@ -12,6 +12,7 @@ describe('health Phase 2 fields', () => {
     expect(typeof result.dbConfigured).toBe('boolean');
     expect(typeof result.voyageConfigured).toBe('boolean');
     expect(typeof result.anthropicConfigured).toBe('boolean');
+    expect(typeof result.pinConfigured).toBe('boolean');
     expect('embeddingCount' in result).toBe(true);
   });
 });

@@ -1,12 +1,11 @@
 import 'dotenv/config';
-import path from 'node:path';
 import { closeDb, getDb } from '../db';
+import { runMigrations } from '../db/migrate';
+import { VAULT_DIR } from '../lib/paths';
 import { writeVaultIndex } from '../lib/vault/db';
 import { buildIndexFromVault } from '../lib/vault/indexer';
 import { embedVaultNotes } from '../lib/rag/retrieve';
 import { isVoyageConfigured } from '../lib/rag/embed';
-
-const VAULT_DIR = path.resolve(process.cwd(), 'vault');
 
 async function main(): Promise<void> {
   const index = await buildIndexFromVault(VAULT_DIR);
@@ -27,6 +26,7 @@ async function main(): Promise<void> {
     return;
   }
 
+  await runMigrations();
   await writeVaultIndex(db, index);
   console.log('[reindex] Database rebuilt from vault (notes_index + wiki links).');
 

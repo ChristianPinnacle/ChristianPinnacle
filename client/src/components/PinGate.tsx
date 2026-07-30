@@ -1,11 +1,26 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { trpc } from '../lib/trpc';
 
 export function PinGate({ children }: { children: ReactNode }) {
-  const status = trpc.auth.status.useQuery();
+  const status = trpc.auth.status.useQuery(undefined, {
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 60_000,
+  });
   const unlock = trpc.auth.unlock.useMutation();
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const refetchStatus = status.refetch;
+  useEffect(() => {
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') {
+        void refetchStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refetchStatus]);
 
   if (status.isLoading) {
     return (

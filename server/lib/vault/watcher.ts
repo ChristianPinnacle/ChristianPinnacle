@@ -1,13 +1,15 @@
 import chokidar from 'chokidar';
 import path from 'node:path';
 import { getDb } from '../../db';
+import { createDebouncedMirror } from './gitMirror';
 import { buildIndexFromVault } from './indexer';
 import { writeVaultIndex } from './db';
 
 const DEBOUNCE_MS = 500;
 
-export function startVaultWatcher(vaultDir: string): chokidar.FSWatcher {
+export function startVaultWatcher(vaultDir: string): ReturnType<typeof chokidar.watch> {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const gitMirror = createDebouncedMirror(vaultDir);
 
   const runReindex = async (reason: string): Promise<void> => {
     const db = getDb();
@@ -39,6 +41,8 @@ export function startVaultWatcher(vaultDir: string): chokidar.FSWatcher {
     debounceTimer = setTimeout(() => {
       void runReindex(reason);
     }, DEBOUNCE_MS);
+    // No-op unless VAULT_GIT_SYNC=1; commits on its own longer debounce.
+    gitMirror.schedule();
   };
 
   const watcher = chokidar.watch(path.join(vaultDir, '**/*.md'), {

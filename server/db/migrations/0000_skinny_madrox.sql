@@ -1,11 +1,11 @@
-CREATE TABLE `embeddings` (
+CREATE TABLE IF NOT EXISTS `embeddings` (
 	`path` varchar(512) NOT NULL,
 	`chunk_idx` int NOT NULL,
 	`text` varchar(4096) NOT NULL,
 	`vector` json NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `links` (
+CREATE TABLE IF NOT EXISTS `links` (
 	`source_path` varchar(512) NOT NULL,
 	`target_path` varchar(512) NOT NULL,
 	`type` enum('wiki','ai') NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE `links` (
 	`accepted` boolean
 );
 --> statement-breakpoint
-CREATE TABLE `notes_index` (
+CREATE TABLE IF NOT EXISTS `notes_index` (
 	`path` varchar(512) NOT NULL,
 	`title` varchar(255) NOT NULL,
 	`folder` varchar(64) NOT NULL,

@@ -19,7 +19,7 @@ Copy `APP_PIN_HASH` + `SESSION_SECRET` into `.env`, restart server.
 ### Definition of done for Phase 5
 App installs on phone, PIN-gated, runs on Railway with persistent vault, real notes imported.
 
-**Status (2026-07-23):** Import ✅ · embeddings ✅ (free-tier throttle) · committed + pushed to `main` ✅ (Railway builds on push). **Remaining to finish deploy:** on Railway set env vars (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, optional `APP_PIN_HASH`/`SESSION_SECRET`); resolve vault-volume seeding (a mounted `/app/vault` volume shadows baked-in notes → add seed-on-boot, or ship vault in image without a volume); then verify install + PIN on phone.
+**Status (2026-07-30):** Code complete: import, seed-on-boot, migrations-on-boot, deterministic Docker runtime, raster PWA icons, LOCK UX, hardened PIN/assets/cache handling, agent contract, and vault validator. **Manual finish only:** set Railway variables, mount `/app/vault`, deploy, run one production reindex if embeddings are empty, then verify ASK + install + PIN/LOCK on a phone.
 
 ---
 
@@ -32,5 +32,9 @@ App installs on phone, PIN-gated, runs on Railway with persistent vault, real no
 ## Phase 1 — Vault + Graph ✅ COMPLETE
 
 ## Backlog
+- Railway live cutover + phone QA (requires Christian's account/device)
+- ~~Weekly digest~~ ✅ `npm run digest` / HUD WEEKLY DIGEST button → `warroom/weekly-digest-*.md`
+- ~~Private GitHub vault mirror~~ ✅ built, off by default — needs a private repo + token to switch on (`VAULT_GIT_SYNC=1`, verify with `VAULT_GIT_DRY_RUN=1` first)
 - Idea inbox, PDF import, Candice bridge, autonomous web research agent
-- Voice capture, image OCR, KPI feeds, GHL/Stripe, client nodes, competitor watch, weekly digest
+- Voice capture, image OCR, KPI feeds, GHL/Stripe, client nodes, competitor watch
+- Optional cleanup: delete root `src/` (15 files, fully superseded by `client/src`)

@@ -9,6 +9,12 @@ import "./index.css";
 
 registerSW({ immediate: true });
 
+// Phase 5 originally cached authenticated tRPC/vault responses. Remove that
+// legacy runtime cache; the PWA now caches only the public application shell.
+if ("caches" in window) {
+  void window.caches.delete("sa-api");
+}
+
 const queryClient = new QueryClient();
 
 createRoot(document.getElementById("root")!).render(

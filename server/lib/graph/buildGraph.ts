@@ -38,6 +38,8 @@ export type GraphPayload = {
   totalPl: number;
 };
 
+const FALLBACK_COLOR = '#FF4D4D';
+
 const FOLDER_COLORS: Record<string, string> = {
   projects: '#4D6BFF',
   areas: '#F5C542',
@@ -85,7 +87,7 @@ export function buildGraphPayload(index: VaultIndex): GraphPayload {
       path: note.path,
       title: note.title,
       folder: note.folder,
-      color: FOLDER_COLORS[note.folder] ?? FOLDER_COLORS.unsorted,
+      color: FOLDER_COLORS[note.folder] ?? FALLBACK_COLOR,
       plScore: note.plScore,
       inboundLinks,
       hub,
@@ -106,8 +108,8 @@ export function buildGraphPayload(index: VaultIndex): GraphPayload {
     (id) => (folderCounts.get(id) ?? 0) > 0,
   ).map((id) => ({
     id,
-    label: FOLDER_LABELS[id],
-    color: FOLDER_COLORS[id],
+    label: FOLDER_LABELS[id] ?? id,
+    color: FOLDER_COLORS[id] ?? FALLBACK_COLOR,
     count: folderCounts.get(id) ?? 0,
   }));
 

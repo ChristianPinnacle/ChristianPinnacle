@@ -7,6 +7,8 @@ import { buildIndexFromVault } from '../vault/indexer';
 import { findOrphans } from '../vault/orphans';
 import { VALID_FOLDERS } from '../vault/types';
 
+const FALLBACK_COLOR = '#FF4D4D';
+
 const FOLDER_COLORS: Record<string, string> = {
   projects: '#4D6BFF',
   areas: '#F5C542',
@@ -133,9 +135,9 @@ export async function buildHudPayload(vaultDir: string): Promise<HudPayload> {
 
   const folders: HudFolder[] = VALID_FOLDERS.map((id) => ({
     id,
-    label: FOLDER_LABELS[id],
-    sub: FOLDER_SUBS[id],
-    color: FOLDER_COLORS[id],
+    label: FOLDER_LABELS[id] ?? id,
+    sub: FOLDER_SUBS[id] ?? id,
+    color: FOLDER_COLORS[id] ?? FALLBACK_COLOR,
     count: folderCounts.get(id) ?? 0,
   }));
 

@@ -4,17 +4,23 @@ import * as schema from './schema';
 
 const databaseUrl = process.env.DATABASE_URL;
 
-let pool: mysql.Pool | null = null;
-let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+function createDb(connection: mysql.Pool) {
+  return drizzle(connection, { schema, mode: 'default' });
+}
 
-export function getDb(): ReturnType<typeof drizzle<typeof schema>> | null {
+export type Database = ReturnType<typeof createDb>;
+
+let pool: mysql.Pool | null = null;
+let db: Database | null = null;
+
+export function getDb(): Database | null {
   if (!databaseUrl) {
     return null;
   }
 
   if (!pool) {
     pool = mysql.createPool(databaseUrl);
-    db = drizzle(pool, { schema, mode: 'default' });
+    db = createDb(pool);
   }
 
   return db;
