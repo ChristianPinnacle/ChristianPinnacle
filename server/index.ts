@@ -19,6 +19,7 @@ import { buildIndexFromVault } from './lib/vault/indexer';
 import { writeVaultIndex } from './lib/vault/db';
 import { seedVaultIfEmpty } from './lib/vault/seed';
 import { startVaultWatcher } from './lib/vault/watcher';
+import { captureInboxNote } from './lib/vault/inbox';
 import { createContext } from './trpc/context';
 import { appRouter } from './trpc/router';
 
@@ -80,6 +81,34 @@ app.use(
   createExpressMiddleware({ router: appRouter, createContext }),
 );
 
+/**
+ * Agent / shortcut quick-capture. Disabled until INBOX_SECRET is set.
+ * Header: x-inbox-secret: <secret>
+ * Body: { "text": "...", "title"?: "..." }
+ */
+app.post('/inbox', express.json({ limit: '32kb' }), async (req, res) => {
+  const configured = process.env.INBOX_SECRET?.trim();
+  if (!configured) {
+    res.status(503).json({ error: 'INBOX_SECRET not configured' });
+    return;
+  }
+  if (req.header('x-inbox-secret') !== configured) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const text = typeof req.body?.text === 'string' ? req.body.text : '';
+  const title = typeof req.body?.title === 'string' ? req.body.title : undefined;
+  try {
+    const note = await captureInboxNote(VAULT_DIR, { text, title });
+    res.status(201).json({ path: note.path, title: note.title });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : 'Inbox capture failed',
+    });
+  }
+});
+
 app.get('/health', (_req, res) => {
   const payload = {
     status: boot.ready && !boot.lastError ? ('ok' as const) : ('starting' as const),
@@ -103,7 +132,7 @@ app.get('/health', (_req, res) => {
 
 if (existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
-  app.get(/^(?!\/trpc|\/health|\/vault-assets).*/, (_req, res) => {
+  app.get(/^(?!\/trpc|\/health|\/vault-assets|\/inbox).*/, (_req, res) => {
     res.sendFile(path.join(CLIENT_DIST, 'index.html'));
   });
 }

@@ -117,6 +117,7 @@ export type CreateNoteInput = {
   body: string;
   tags?: string[];
   summary?: string;
+  source?: VaultFrontmatter['source'];
 };
 
 export async function createNote(vaultDir: string, input: CreateNoteInput): Promise<NoteRecord> {
@@ -135,7 +136,7 @@ export async function createNote(vaultDir: string, input: CreateNoteInput): Prom
     tags: input.tags ?? [],
     created: today,
     updated: today,
-    source: 'user',
+    source: input.source ?? 'user',
     summary: input.summary?.trim() ?? '',
   };
 

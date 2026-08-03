@@ -99,6 +99,17 @@ On the HUD, tap **WEEKLY DIGEST**. It files one War Room note summarising the
 week: what you touched, decisions that moved, your strongest hubs, and anything
 orphaned. Re-tapping the same day refreshes that note instead of adding another.
 
+### Capture tools (backlog)
+- **INBOX** mode — type a thought → FILE into Unsorted
+- **MIC** — speak a capture (Chrome/Safari) into the INBOX draft
+- **PDF** — import a text PDF into Unsorted
+- **OCR** — photo/screenshot → text note (needs Anthropic key)
+- **RESEARCH** — search the web for a brief, review proposals, tap FILE to save
+  (needs `TAVILY_API_KEY` on the server)
+
+Agent shortcut inbox (optional): set `INBOX_SECRET`, then
+`POST /inbox` with header `x-inbox-secret` and body `{ "text": "..." }`.
+
 ### Vault backup to a private GitHub repo
 
 This is built but switched off, because it needs a repo and a token you own:

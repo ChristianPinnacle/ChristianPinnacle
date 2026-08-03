@@ -47,6 +47,14 @@ import {
   quarantineCandidates,
   quarantineOrphan,
 } from '../lib/vault/orphans';
+import { importPdfToVault } from '../lib/vault/importPdf';
+import { importImageOcrToVault } from '../lib/vault/importOcr';
+import { captureInboxNote } from '../lib/vault/inbox';
+import {
+  acceptResearchProposal,
+  isTavilyConfigured,
+  proposeResearch,
+} from '../lib/rag/research';
 import { reindexVaultFromDisk } from '../lib/vault/reindex';
 import { VALID_FOLDERS, type VaultIndex } from '../lib/vault/types';
 import type { Context } from './context';
@@ -408,6 +416,140 @@ export const appRouter = t.router({
     delete: procedure
       .input(z.object({ path: z.string().min(1) }))
       .mutation(async ({ input }) => deleteNote(VAULT_DIR, input.path)),
+
+    importPdf: procedure
+      .input(
+        z.object({
+          filename: z.string().min(1).max(255),
+          dataBase64: z.string().min(1),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        try {
+          let note = await importPdfToVault(VAULT_DIR, input);
+          try {
+            note = await enrichNoteIfNeeded(VAULT_DIR, note.path);
+          } catch (err) {
+            console.error('[enrich] pdf import failed:', err);
+          }
+          await afterNoteWrite(note.path);
+          return note;
+        } catch (err) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: err instanceof Error ? err.message : 'PDF import failed',
+          });
+        }
+      }),
+
+    importOcr: procedure
+      .input(
+        z.object({
+          filename: z.string().min(1).max(255),
+          dataBase64: z.string().min(1),
+          mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        if (!isAnthropicConfigured()) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: 'ANTHROPIC_API_KEY required for OCR',
+          });
+        }
+        try {
+          let note = await importImageOcrToVault(VAULT_DIR, input);
+          try {
+            note = await enrichNoteIfNeeded(VAULT_DIR, note.path);
+          } catch (err) {
+            console.error('[enrich] ocr import failed:', err);
+          }
+          await afterNoteWrite(note.path);
+          return note;
+        } catch (err) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: err instanceof Error ? err.message : 'OCR import failed',
+          });
+        }
+      }),
+  }),
+
+  inbox: t.router({
+    capture: procedure
+      .input(
+        z.object({
+          text: z.string().min(1).max(8000),
+          title: z.string().min(1).max(120).optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        let note = await captureInboxNote(VAULT_DIR, input);
+        try {
+          note = await enrichNoteIfNeeded(VAULT_DIR, note.path);
+        } catch (err) {
+          console.error('[enrich] inbox failed:', err);
+        }
+        await afterNoteWrite(note.path);
+        return note;
+      }),
+  }),
+
+  research: t.router({
+    status: procedure.query(() => ({
+      tavilyConfigured: isTavilyConfigured(),
+      anthropicConfigured: isAnthropicConfigured(),
+    })),
+
+    propose: procedure
+      .input(z.object({ brief: z.string().min(3).max(500) }))
+      .mutation(async ({ input }) => {
+        if (!isTavilyConfigured() || !isAnthropicConfigured()) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message:
+              'Research needs TAVILY_API_KEY and ANTHROPIC_API_KEY. Add them to env to enable.',
+          });
+        }
+
+        const index = await buildIndexFromVault(VAULT_DIR);
+        const hubs = [...index.notes]
+          .sort((a, b) => b.plScore - a.plScore)
+          .slice(0, 8)
+          .map((n) => `- ${n.title} (${n.folder}, PL ${n.plScore})`)
+          .join('\n');
+
+        try {
+          const proposals = await proposeResearch(input.brief, hubs);
+          return { proposals };
+        } catch (err) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: err instanceof Error ? err.message : 'Research failed',
+          });
+        }
+      }),
+
+    accept: procedure
+      .input(
+        z.object({
+          title: z.string().min(1).max(120),
+          folder: z.enum(VALID_FOLDERS),
+          summary: z.string().max(500),
+          body: z.string().min(1),
+          sources: z.array(z.string()).max(8),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        let note = await acceptResearchProposal(VAULT_DIR, input);
+        try {
+          note = await enrichNoteIfNeeded(VAULT_DIR, note.path);
+        } catch (err) {
+          console.error('[enrich] research accept failed:', err);
+        }
+        await afterNoteWrite(note.path);
+        return note;
+      }),
   }),
 
   digest: t.router({

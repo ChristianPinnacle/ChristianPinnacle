@@ -6,7 +6,15 @@ import { trpc } from "./lib/trpc";
 
 type View = "hud" | "graph" | "notes";
 type EditorMode = { mode: "create" } | { mode: "edit"; notePath: string };
-type ChatMode = "ask" | "create" | "decide";
+type ChatMode = "ask" | "create" | "decide" | "inbox" | "research";
+type ResearchProposal = {
+  id: string;
+  title: string;
+  folder: "projects" | "areas" | "resources" | "warroom" | "archive" | "unsorted";
+  summary: string;
+  body: string;
+  sources: string[];
+};
 
 const FOLDERS = [
   { key: "projects", rank: "ELITE", label: "Current Projects", icon: "✦", error: false },
@@ -57,12 +65,16 @@ export default function App() {
   const [createTitle, setCreateTitle] = useState<string | null>(null);
   const [chatScope, setChatScope] = useState<{ path: string; title: string } | null>(null);
   const [digestNote, setDigestNote] = useState<string | null>(null);
+  const [researchProposals, setResearchProposals] = useState<ResearchProposal[]>([]);
+  const [listening, setListening] = useState(false);
   const [citations, setCitations] = useState<
     Array<{ path: string; title: string; score: number; excerpt: string }>
   >([]);
   const [ignitedPaths, setIgnitedPaths] = useState<string[]>([]);
   const scanRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const ocrInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
   const authStatus = trpc.auth.status.useQuery();
@@ -122,6 +134,43 @@ export default function App() {
       ]);
     },
     onError: (err) => setDigestNote(err.message),
+  });
+  const captureInbox = trpc.inbox.capture.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.vault.list.invalidate(),
+        utils.hud.get.invalidate(),
+        utils.orphans.list.invalidate(),
+      ]);
+    },
+  });
+  const importPdf = trpc.notes.importPdf.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.vault.list.invalidate(),
+        utils.hud.get.invalidate(),
+        utils.orphans.list.invalidate(),
+      ]);
+    },
+  });
+  const importOcr = trpc.notes.importOcr.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.vault.list.invalidate(),
+        utils.hud.get.invalidate(),
+        utils.orphans.list.invalidate(),
+      ]);
+    },
+  });
+  const researchPropose = trpc.research.propose.useMutation();
+  const researchAccept = trpc.research.accept.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.vault.list.invalidate(),
+        utils.hud.get.invalidate(),
+        utils.graph.get.invalidate(),
+      ]);
+    },
   });
   const lockApp = trpc.auth.lock.useMutation({
     onSuccess: async () => {
@@ -238,9 +287,23 @@ export default function App() {
     requestAnimationFrame(() => chatInputRef.current?.focus());
   };
 
+  const refreshNotes = async (): Promise<void> => {
+    await Promise.all([
+      utils.vault.list.invalidate(),
+      utils.hud.get.invalidate(),
+      utils.graph.get.invalidate(),
+      utils.orphans.list.invalidate(),
+    ]);
+  };
+
   const submitAsk = async (): Promise<void> => {
     const question = chatDraft.trim();
-    const busy = askChat.isPending || createChat.isPending || decideChat.isPending;
+    const busy =
+      askChat.isPending ||
+      createChat.isPending ||
+      decideChat.isPending ||
+      captureInbox.isPending ||
+      researchPropose.isPending;
     if (!question || busy) return;
 
     setChatError(null);
@@ -260,6 +323,23 @@ export default function App() {
         setCitations(result.citations);
         setIgnitedPaths(result.sourcePaths);
         if (result.sourcePaths.length > 0) setView("graph");
+      } else if (chatMode === "inbox") {
+        const note = await captureInbox.mutateAsync({ text: question });
+        setChatAnswer(`Filed to Unsorted: ${note.title}`);
+        setCitations([]);
+        setIgnitedPaths([]);
+        setChatDraft("");
+        await refreshNotes();
+      } else if (chatMode === "research") {
+        const result = await researchPropose.mutateAsync({ brief: question });
+        setResearchProposals(result.proposals);
+        setChatAnswer(
+          result.proposals.length > 0
+            ? `Found ${result.proposals.length} proposal(s). Tap FILE to save one.`
+            : "No proposals returned — try a sharper brief.",
+        );
+        setCitations([]);
+        setIgnitedPaths([]);
       } else {
         const result = await askChat.mutateAsync({
           question,
@@ -276,6 +356,99 @@ export default function App() {
       setIgnitedPaths([]);
       setCreateTitle(null);
     }
+  };
+
+  const handlePdfPick = async (file: File): Promise<void> => {
+    setChatError(null);
+    try {
+      const dataBase64 = await fileToBase64(file);
+      const note = await importPdf.mutateAsync({
+        filename: file.name,
+        dataBase64,
+      });
+      setChatAnswer(`PDF imported → ${note.title}`);
+      await refreshNotes();
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "PDF import failed");
+    }
+  };
+
+  const handleOcrPick = async (file: File): Promise<void> => {
+    setChatError(null);
+    const mimeType = file.type as "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+    if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mimeType)) {
+      setChatError("Use PNG, JPEG, WebP, or GIF");
+      return;
+    }
+    try {
+      const dataBase64 = await fileToBase64(file);
+      const note = await importOcr.mutateAsync({
+        filename: file.name,
+        dataBase64,
+        mimeType,
+      });
+      setChatAnswer(`OCR filed → ${note.title}`);
+      await refreshNotes();
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "OCR failed");
+    }
+  };
+
+  const startVoiceCapture = (): void => {
+    const SpeechRecognitionCtor =
+      (
+        window as unknown as {
+          SpeechRecognition?: new () => {
+            lang: string;
+            interimResults: boolean;
+            onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+            onerror: (() => void) | null;
+            onend: (() => void) | null;
+            start: () => void;
+            stop: () => void;
+          };
+          webkitSpeechRecognition?: new () => {
+            lang: string;
+            interimResults: boolean;
+            onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+            onerror: (() => void) | null;
+            onend: (() => void) | null;
+            start: () => void;
+            stop: () => void;
+          };
+        }
+      ).SpeechRecognition ??
+      (
+        window as unknown as {
+          webkitSpeechRecognition?: new () => {
+            lang: string;
+            interimResults: boolean;
+            onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+            onerror: (() => void) | null;
+            onend: (() => void) | null;
+            start: () => void;
+            stop: () => void;
+          };
+        }
+      ).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor) {
+      setChatError("Voice capture needs Chrome/Safari speech support");
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "en-AU";
+    recognition.interimResults = false;
+    setListening(true);
+    setChatMode("inbox");
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (transcript) setChatDraft((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognition.start();
   };
 
   const saveCreateAsNote = (): void => {
@@ -847,6 +1020,61 @@ export default function App() {
         </div>
       )}
 
+      {researchProposals.length > 0 && (
+        <div className="sa-research-panel">
+          <div className="sa-research-header">RESEARCH PROPOSALS</div>
+          <p className="sa-research-hint">Review then FILE — nothing is saved until you tap.</p>
+          {researchProposals.map((proposal) => (
+            <div key={proposal.id} className="sa-research-row">
+              <div className="sa-research-copy">
+                <strong>{proposal.title}</strong>
+                <span>{proposal.folder}</span>
+                <p>{proposal.summary || proposal.body.slice(0, 120)}</p>
+              </div>
+              <button
+                type="button"
+                className="sa-research-file"
+                disabled={researchAccept.isPending}
+                onClick={() => {
+                  void researchAccept
+                    .mutateAsync({
+                      title: proposal.title,
+                      folder: proposal.folder,
+                      summary: proposal.summary,
+                      body: proposal.body,
+                      sources: proposal.sources,
+                    })
+                    .then(() => {
+                      setResearchProposals((prev) =>
+                        prev.filter((item) => item.id !== proposal.id),
+                      );
+                      setChatAnswer(`Filed research note: ${proposal.title}`);
+                    })
+                    .catch((err: unknown) => {
+                      setChatError(
+                        err instanceof Error ? err.message : "Could not file proposal",
+                      );
+                    });
+                }}
+              >
+                FILE
+              </button>
+              <button
+                type="button"
+                className="sa-research-skip"
+                onClick={() =>
+                  setResearchProposals((prev) =>
+                    prev.filter((item) => item.id !== proposal.id),
+                  )
+                }
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="sa-chat-modes">
         <button
           type="button"
@@ -875,7 +1103,73 @@ export default function App() {
         >
           DECIDE
         </button>
+        <button
+          type="button"
+          className={`sa-chat-mode${chatMode === "inbox" ? " active" : ""}`}
+          onClick={() => {
+            setChatMode("inbox");
+            setChatScope(null);
+          }}
+        >
+          INBOX
+        </button>
+        <button
+          type="button"
+          className={`sa-chat-mode${chatMode === "research" ? " active" : ""}`}
+          onClick={() => {
+            setChatMode("research");
+            setChatScope(null);
+          }}
+        >
+          RESEARCH
+        </button>
+        <button
+          type="button"
+          className="sa-chat-mode"
+          onClick={() => pdfInputRef.current?.click()}
+          disabled={importPdf.isPending}
+        >
+          PDF
+        </button>
+        <button
+          type="button"
+          className="sa-chat-mode"
+          onClick={() => ocrInputRef.current?.click()}
+          disabled={importOcr.isPending}
+        >
+          OCR
+        </button>
+        <button
+          type="button"
+          className={`sa-chat-mode${listening ? " active" : ""}`}
+          onClick={() => startVoiceCapture()}
+        >
+          {listening ? "…" : "MIC"}
+        </button>
       </div>
+
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handlePdfPick(file);
+        }}
+      />
+      <input
+        ref={ocrInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handleOcrPick(file);
+        }}
+      />
 
       <div className="sa-chat-bar">
         <button
@@ -896,18 +1190,29 @@ export default function App() {
               ? "What should I write…"
               : chatMode === "decide"
                 ? "What did we decide about…"
-                : chatScope
-                  ? `Ask about ${chatScope.title}…`
-                  : health.data && (!health.data.voyageConfigured || !health.data.anthropicConfigured)
-                    ? "Add VOYAGE + ANTHROPIC keys to .env…"
-                    : "ASK THE VAULT…"
+                : chatMode === "inbox"
+                  ? "Quick capture → Unsorted…"
+                  : chatMode === "research"
+                    ? "Research brief (needs Tavily key)…"
+                    : chatScope
+                      ? `Ask about ${chatScope.title}…`
+                      : health.data &&
+                          (!health.data.voyageConfigured || !health.data.anthropicConfigured)
+                        ? "Add VOYAGE + ANTHROPIC keys to .env…"
+                        : "ASK THE VAULT…"
           }
           value={chatDraft}
           onChange={(e) => setChatDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") void submitAsk();
           }}
-          disabled={askChat.isPending || createChat.isPending || decideChat.isPending}
+          disabled={
+            askChat.isPending ||
+            createChat.isPending ||
+            decideChat.isPending ||
+            captureInbox.isPending ||
+            researchPropose.isPending
+          }
         />
         <button
           type="button"
@@ -917,16 +1222,26 @@ export default function App() {
             askChat.isPending ||
             createChat.isPending ||
             decideChat.isPending ||
+            captureInbox.isPending ||
+            researchPropose.isPending ||
             !chatDraft.trim()
           }
         >
-          {askChat.isPending || createChat.isPending || decideChat.isPending
+          {askChat.isPending ||
+          createChat.isPending ||
+          decideChat.isPending ||
+          captureInbox.isPending ||
+          researchPropose.isPending
             ? "…"
             : chatMode === "create"
               ? "WRITE"
               : chatMode === "decide"
                 ? "DECIDE"
-                : "ASK"}
+                : chatMode === "inbox"
+                  ? "FILE"
+                  : chatMode === "research"
+                    ? "SEARCH"
+                    : "ASK"}
         </button>
       </div>
     </div>

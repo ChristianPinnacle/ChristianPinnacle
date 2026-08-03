@@ -54,6 +54,55 @@ export async function invokeLLM(
     messages: turnMessages,
   });
 
+  return extractText(response);
+}
+
+export async function invokeLLMVision(
+  messages: LLMMessage[],
+  imageBase64: string,
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+  options?: LLMOptions,
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is not set — cannot run OCR');
+  }
+
+  const system = messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content)
+    .join('\n\n');
+
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  const prompt = lastUser?.content ?? 'Extract the text from this image.';
+
+  const client = new Anthropic({ apiKey });
+  const response = await client.messages.create({
+    model: options?.model ?? DEFAULT_MODEL,
+    max_tokens: options?.maxTokens ?? 1500,
+    system: system || undefined,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mimeType,
+              data: imageBase64,
+            },
+          },
+          { type: 'text', text: prompt },
+        ],
+      },
+    ],
+  });
+
+  return extractText(response);
+}
+
+function extractText(response: Anthropic.Message): string {
   const text = response.content
     .filter((block) => block.type === 'text')
     .map((block) => (block.type === 'text' ? block.text : ''))

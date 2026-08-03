@@ -20,6 +20,24 @@
 
 ## Session log
 
+### 2026-08-03 — Backlog sprint: PDF, inbox, research, voice, OCR
+**Changed:**
+- PDF import via `pdf-parse` → `unsorted` with `source: import`; fails clearly on scanned/image-only PDFs.
+- Idea inbox: chat **INBOX** mode + optional Express `POST /inbox` gated by `INBOX_SECRET`.
+- Research agent: Tavily search + Claude proposals; UI FILE/✕ approve-before-write (never silent-writes).
+- Voice: browser SpeechRecognition fills INBOX draft (Chrome/Safari).
+- OCR: Anthropic vision through `invokeLLMVision` → unsorted note (no new OCR vendor).
+- `createNote` accepts optional `source` so imports stay `import` / user captures stay `user`.
+
+**Verified:** typecheck green; focused backlog tests 9/9 (inbox capture, PDF rejection, research JSON parse, admin).
+
+**Raw findings:**
+- Research is inert until `TAVILY_API_KEY` is set — intentional.
+- Disk on this workstation remains ~1 GB free; avoided heavy OCR/PDF live API tests here.
+- Candice / GHL / Stripe / client-nodes still blocked on credentials or security review.
+
+**Next:** Christian Phase 5 phone/ASK QA; optionally add Tavily + inbox secret on Railway.
+
 ### 2026-08-03 — Dead UI tree removed + production reindex API
 **Changed:**
 - Deleted unused root `src/` (15 files). Live UI is exclusively `client/src`; nothing imported the old tree.
