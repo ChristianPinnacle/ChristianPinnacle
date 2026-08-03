@@ -20,6 +20,23 @@
 
 ## Session log
 
+### 2026-08-03 — Dead UI tree removed + production reindex API
+**Changed:**
+- Deleted unused root `src/` (15 files). Live UI is exclusively `client/src`; nothing imported the old tree.
+- Extracted `reindexVaultFromDisk` and added PIN-gated `admin.reindex` requiring `{ confirm: "REINDEX" }` so production embeddings can be rebuilt without a local DB tunnel, without auto-running on boot.
+- Updated START-HERE / whats-next for live Railway status and deferred Christian QA.
+
+**Verified:** `npm run typecheck` green; admin + orphans tests 5/5 after hardening the quarantine probe (unique title, short body under enrich threshold). Full suite previously 94/95 with one brittle orphan list assertion under live enrich — fixed. Disk on this machine is critically low (~1 GB free); avoid large local reindex/embed runs here.
+
+**Raw findings:** Christian confirmed live unlock works; ASK smoke + phone install still deferred by him. Orphan quarantine test failed when enrich/AI could change isolation assumptions — test no longer depends on `orphans.list` finding the probe first.
+
+**Next:** Christian runs ASK + phone QA; optionally mount `/app/vault` if not already; optionally enable Git mirror.
+
+### 2026-08-03 — Railway live; QA deferred
+**Changed:** No code. Christian confirmed live Railway deploy unlocks with PIN and works. Deferred two finish checks to later: production ASK/citations smoke + phone Add-to-Home-Screen install/PIN.
+
+**Next:** Remind Christian of those two QA items when he returns.
+
 ### 2026-07-30 — Backlog batch: dead-code removal, weekly digest, Git mirror
 **Changed:**
 - **Deleted the duplicate server stack** (`server/vault/*`, `server/routers/*`, `server/context.ts`, `server/trpc.ts`) plus the broken root `scripts/reindex.ts`, which imported a `connectDb` that no longer exists. Nothing live imported any of it — every `../vault/*` import inside `server/lib/` resolves to `server/lib/vault/`. This removes the divergent parser that accepted `[[Title#heading]]`, so agents can no longer follow the wrong contract.

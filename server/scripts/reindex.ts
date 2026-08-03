@@ -1,11 +1,8 @@
 import 'dotenv/config';
 import { closeDb, getDb } from '../db';
-import { runMigrations } from '../db/migrate';
 import { VAULT_DIR } from '../lib/paths';
-import { writeVaultIndex } from '../lib/vault/db';
+import { reindexVaultFromDisk } from '../lib/vault/reindex';
 import { buildIndexFromVault } from '../lib/vault/indexer';
-import { embedVaultNotes } from '../lib/rag/retrieve';
-import { isVoyageConfigured } from '../lib/rag/embed';
 
 async function main(): Promise<void> {
   const index = await buildIndexFromVault(VAULT_DIR);
@@ -20,22 +17,21 @@ async function main(): Promise<void> {
     }
   }
 
-  const db = getDb();
-  if (!db) {
+  if (!getDb()) {
     console.log('[reindex] DATABASE_URL not set — parsed vault only, nothing written to DB.');
     return;
   }
 
-  await runMigrations();
-  await writeVaultIndex(db, index);
-  console.log('[reindex] Database rebuilt from vault (notes_index + wiki links).');
+  const result = await reindexVaultFromDisk(VAULT_DIR);
+  console.log(
+    `[reindex] Database rebuilt — ${result.noteCount} notes, ${result.linkCount} wiki links.`,
+  );
 
-  if (!isVoyageConfigured()) {
+  if (result.embeddingsSkipped) {
     console.log('[reindex] VOYAGE_API_KEY not set — skipped embeddings.');
   } else {
-    const embedResult = await embedVaultNotes(db, VAULT_DIR, index);
     console.log(
-      `[reindex] Embeddings — ${embedResult.notesEmbedded} notes, ${embedResult.chunksWritten} chunks.`,
+      `[reindex] Embeddings — ${result.notesEmbedded} notes, ${result.chunksWritten} chunks.`,
     );
   }
 

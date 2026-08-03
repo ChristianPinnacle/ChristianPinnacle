@@ -47,6 +47,7 @@ import {
   quarantineCandidates,
   quarantineOrphan,
 } from '../lib/vault/orphans';
+import { reindexVaultFromDisk } from '../lib/vault/reindex';
 import { VALID_FOLDERS, type VaultIndex } from '../lib/vault/types';
 import type { Context } from './context';
 
@@ -434,6 +435,29 @@ export const appRouter = t.router({
         touchedCount: digest.recentNotes.length,
       };
     }),
+  }),
+
+  /**
+   * Production recovery path for empty embeddings. Requires an unlocked PIN
+   * session and an explicit confirm string so it cannot be fired by accident.
+   * Wipes and rebuilds derived tables — do not call on a timer.
+   */
+  admin: t.router({
+    reindex: procedure
+      .input(z.object({ confirm: z.literal('REINDEX') }))
+      .mutation(async () => {
+        try {
+          return {
+            ok: true as const,
+            ...(await reindexVaultFromDisk(VAULT_DIR)),
+          };
+        } catch (err) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: err instanceof Error ? err.message : 'Reindex failed',
+          });
+        }
+      }),
   }),
 
   portrait: t.router({

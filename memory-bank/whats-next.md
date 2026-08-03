@@ -1,25 +1,24 @@
 # What's Next
 
-## Current phase: PHASE 5 — Ship 🔨 IN PROGRESS
+## Current phase: PHASE 5 — Ship 🔨 ALMOST DONE
 
-**Phase 4 review:** CREATE + DECIDE done. PDF + idea inbox deferred.
+**Live:** Railway project **Saiyan Archive** Online; PIN unlock works (`2541`).
+
+### Left for Christian (cannot be done by the agent)
+1. **ASK smoke test** — ask the vault; expect citations. If empty → production reindex (`EMBED_FREE_TIER=1 npm run reindex` on Railway, or PIN-gated `admin.reindex` with confirm `REINDEX`).
+2. **Phone install** — Add to Home Screen → unlock `2541` → ASK / LOCK.
+3. **Optional:** turn on vault Git mirror (needs private repo + token).
+4. **Optional:** confirm `/app/vault` volume is mounted on SaiyanArchive (not only MySQL).
 
 ### Phase 5 task queue
-1. ~~**PWA**~~ ✅ vite-plugin-pwa · manifest · SW · install icons
-2. ~~**PIN lock**~~ ✅ `APP_PIN_HASH` + session cookie · PinGate · API guard
-3. ~~**Railway deploy**~~ ✅ Dockerfile + railway.json · serves `dist/client` + vault volume
-4. ~~**Real vault import**~~ ✅ `npm run import:intel` seeds 9 real knowledge files from `Desktop/Intelligence/` → `vault/resources/` (~38k words), cross-linked; reindexed
-
-### How to enable PIN
-```
-npm run pin:hash -- 1234
-```
-Copy `APP_PIN_HASH` + `SESSION_SECRET` into `.env`, restart server.
+1. ~~**PWA**~~ ✅
+2. ~~**PIN lock**~~ ✅
+3. ~~**Railway deploy**~~ ✅ live
+4. ~~**Real vault import**~~ ✅
 
 ### Definition of done for Phase 5
 App installs on phone, PIN-gated, runs on Railway with persistent vault, real notes imported.
-
-**Status (2026-07-30):** Code complete: import, seed-on-boot, migrations-on-boot, deterministic Docker runtime, raster PWA icons, LOCK UX, hardened PIN/assets/cache handling, agent contract, and vault validator. **Manual finish only:** set Railway variables, mount `/app/vault`, deploy, run one production reindex if embeddings are empty, then verify ASK + install + PIN/LOCK on a phone.
+→ Code + Railway live ✅ · phone install + ASK smoke still pending Christian.
 
 ---
 
@@ -31,10 +30,13 @@ App installs on phone, PIN-gated, runs on Railway with persistent vault, real no
 
 ## Phase 1 — Vault + Graph ✅ COMPLETE
 
-## Backlog
-- Railway live cutover + phone QA (requires Christian's account/device)
-- ~~Weekly digest~~ ✅ `npm run digest` / HUD WEEKLY DIGEST button → `warroom/weekly-digest-*.md`
-- ~~Private GitHub vault mirror~~ ✅ built, off by default — needs a private repo + token to switch on (`VAULT_GIT_SYNC=1`, verify with `VAULT_GIT_DRY_RUN=1` first)
-- Idea inbox, PDF import, Candice bridge, autonomous web research agent
-- Voice capture, image OCR, KPI feeds, GHL/Stripe, client nodes, competitor watch
-- Optional cleanup: delete root `src/` (15 files, fully superseded by `client/src`)
+## Backlog (needs Christian priority / credentials)
+- Idea inbox
+- PDF import
+- Candice live bridge
+- Autonomous web research agent
+- Voice capture, image OCR, KPI feeds, GHL/Stripe, competitor watch
+- Client-per-node coaching brain (**blocked:** security review)
+- ~~Weekly digest~~ ✅
+- ~~Private GitHub vault mirror~~ ✅ built, off until credentials
+- ~~Delete root `src/`~~ ✅ removed 2026-08-03

@@ -36,11 +36,33 @@ show me how to test it myself, then stop.
 Once Task 4 is done, the app has a picture frame at the top — tap it, pick an image from your phone, done. Get the image by commissioning "original Saiyan-prince-inspired anime art" (Fiverr, ~$30–80) or generating one with an AI art tool. Save it to your phone first.
 
 ## When it's live (Phase 5)
-The app becomes an icon on your phone home screen. Daily use is: tap icon → enter PIN → tap dots to explore, tap SCOUTER to ask questions, tap + to add a note. That's it.
+The app is live on Railway (project **Saiyan Archive**). Daily use is: open the
+URL or home-screen icon → enter PIN (`2541`) → explore, ask Scouter, add notes.
 
-## Phase 5 — Railway setup
+### Still do later (Christian QA)
+1. Ask the vault a question — expect citations. If Scouter has nothing to
+   retrieve, run a production reindex (below).
+2. On your phone: Add to Home Screen → unlock with PIN → quick ASK / LOCK test.
 
-The code deploys from `main`, but Railway still needs account-specific setup:
+### Production reindex (only if ASK is empty)
+Preferred: Railway → SaiyanArchive service → open a one-off shell / run command:
+
+```
+EMBED_FREE_TIER=1 npm run reindex
+```
+
+There is also a PIN-gated API `admin.reindex` that requires `{ "confirm": "REINDEX" }`
+so it cannot be triggered by accident. It rebuilds the whole embedding table —
+do not spam it.
+
+## Phase 5 — Railway setup (done for this project)
+
+Already completed for Saiyan Archive:
+- GitHub auto-deploy from `main`
+- MySQL Online
+- App Online with PIN, AI keys, and `CLIENT_ORIGIN`
+
+If recreating from scratch:
 
 1. Create/link a Railway service to this repository.
 2. Add Railway MySQL and set `DATABASE_URL` on the app service.
@@ -60,12 +82,7 @@ The code deploys from `main`, but Railway still needs account-specific setup:
    empty volume from the real vault baked into the image; later deploys do not
    overwrite edits.
 7. Deploy. Startup applies Drizzle migrations before indexing the vault.
-8. Run a one-off production reindex if `embeddingCount` is zero:
-
-   ```
-   npm run reindex
-   ```
-
+8. Run a one-off production reindex if embeddings are empty (see above).
 9. Open `/health`, then the app URL. Unlock, ask a vault question, and tap a
    citation.
 

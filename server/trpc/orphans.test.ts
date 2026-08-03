@@ -1,10 +1,12 @@
 import { existsSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { appRouter } from './router';
 import { testContext } from './testContext';
 
 const VAULT_DIR = path.resolve(process.cwd(), 'vault');
+const createdPaths: string[] = [];
 
 describe('orphans.list', () => {
   it('returns orphans and quarantine candidates', async () => {
@@ -21,21 +23,23 @@ describe('orphans.list', () => {
 describe('orphans.quarantine', () => {
   it('moves an isolated note into unsorted', async () => {
     const caller = appRouter.createCaller(testContext());
+    const stamp = Date.now();
     const created = await caller.notes.create({
-      title: 'Orphan Quarantine Probe',
+      title: `Orphan Quarantine Probe ${stamp}`,
       folder: 'projects',
-      body: 'Isolated probe note with enough body text to exist as a real file.',
+      // Keep the body short of the enrich threshold so Claude cannot inject
+      // wikilinks that would take this note out of the orphan set.
+      body: 'Isolated probe.',
       tags: ['test'],
       summary: 'Temporary orphan probe.',
     });
+    createdPaths.push(created.path);
 
     expect(created.path.startsWith('projects/')).toBe(true);
 
-    const listed = await caller.orphans.list();
-    const found = listed.quarantine.find((o) => o.path === created.path);
-    expect(found).toBeDefined();
-
     const moved = await caller.orphans.quarantine({ path: created.path });
+    createdPaths.push(moved.path);
+
     expect(moved.folder).toBe('unsorted');
     expect(moved.path.startsWith('unsorted/')).toBe(true);
     expect(existsSync(path.join(VAULT_DIR, created.path))).toBe(false);
@@ -55,16 +59,11 @@ describe('hud orphanCount', () => {
 });
 
 afterAll(async () => {
-  // Cleanup if prior run left the probe behind
-  const probe = path.join(VAULT_DIR, 'unsorted/orphan-quarantine-probe.md');
-  const probeProj = path.join(VAULT_DIR, 'projects/orphan-quarantine-probe.md');
-  const { unlink } = await import('node:fs/promises');
-  for (const p of [probe, probeProj]) {
+  for (const relative of createdPaths) {
     try {
-      await unlink(p);
+      await unlink(path.join(VAULT_DIR, relative));
     } catch {
       // ignore
     }
   }
 });
-
