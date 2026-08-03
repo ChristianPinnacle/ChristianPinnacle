@@ -55,6 +55,11 @@ import {
   isTavilyConfigured,
   proposeResearch,
 } from '../lib/rag/research';
+import {
+  DEFAULT_DAILY_TOPICS,
+  resolveDailyTopics,
+  runDailyResearch,
+} from '../lib/rag/dailyResearch';
 import { reindexVaultFromDisk } from '../lib/vault/reindex';
 import { VALID_FOLDERS, type VaultIndex } from '../lib/vault/types';
 import type { Context } from './context';
@@ -499,6 +504,8 @@ export const appRouter = t.router({
     status: procedure.query(() => ({
       tavilyConfigured: isTavilyConfigured(),
       anthropicConfigured: isAnthropicConfigured(),
+      dailyTopics: resolveDailyTopics(),
+      defaultDailyTopics: [...DEFAULT_DAILY_TOPICS],
     })),
 
     propose: procedure
@@ -549,6 +556,51 @@ export const appRouter = t.router({
         }
         await afterNoteWrite(note.path);
         return note;
+      }),
+
+    /** Auto-file daily training-science scan (same as `npm run research:daily`). */
+    runDaily: procedure
+      .input(z.object({ force: z.boolean().optional() }).optional())
+      .mutation(async ({ input }) => {
+        if (!isTavilyConfigured() || !isAnthropicConfigured()) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message:
+              'Daily research needs TAVILY_API_KEY and ANTHROPIC_API_KEY.',
+          });
+        }
+
+        try {
+          const result = await runDailyResearch(VAULT_DIR, {
+            force: input?.force ?? false,
+          });
+
+          if (!result.skipped) {
+            for (const note of result.notes) {
+              await afterNoteWrite(note.notePath);
+            }
+            await afterNoteWrite(result.summaryPath);
+          }
+
+          return {
+            ok: true as const,
+            date: result.date,
+            skipped: result.skipped,
+            summaryPath: result.summaryPath,
+            filed: result.notes.map((n) => ({
+              topic: n.topic,
+              title: n.title,
+              path: n.notePath,
+            })),
+            errors: result.errors,
+          };
+        } catch (err) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              err instanceof Error ? err.message : 'Daily research failed',
+          });
+        }
       }),
   }),
 

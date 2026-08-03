@@ -20,6 +20,18 @@
 
 ## Session log
 
+### 2026-08-03 — Daily research auto-file cron
+**Changed:**
+- `server/lib/rag/dailyResearch.ts` auto-searches hypertrophy, strength, injury rehab, endurance training, weight lifting; writes one `resources/daily-*-DATE.md` per topic plus `warroom/daily-research-DATE.md` summary (same-day overwrite / skip without `--force`).
+- `npm run research:daily`, HUD **DAILY RESEARCH**, and `research.runDaily` tRPC mutation.
+- Topics overridable via `DAILY_RESEARCH_TOPICS`.
+
+**Verified:** helper tests + research.status topics; typecheck/build after wiring.
+
+**Raw findings:** Still needs `TAVILY_API_KEY` + Railway cron to run unattended. Notes land in the vault (SoT); DB embeddings follow via watcher/`afterNoteWrite`/reindex — not a separate “studies table.”
+
+**Next:** Christian adds Tavily key + Railway cron; Phase 5 ASK/phone QA.
+
 ### 2026-08-03 — Backlog sprint: PDF, inbox, research, voice, OCR
 **Changed:**
 - PDF import via `pdf-parse` → `unsorted` with `source: import`; fails clearly on scanned/image-only PDFs.

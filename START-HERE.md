@@ -106,6 +106,11 @@ orphaned. Re-tapping the same day refreshes that note instead of adding another.
 - **OCR** — photo/screenshot → text note (needs Anthropic key)
 - **RESEARCH** — search the web for a brief, review proposals, tap FILE to save
   (needs `TAVILY_API_KEY` on the server)
+- **DAILY RESEARCH** (HUD) — auto-files today's studies for hypertrophy, strength,
+  injury rehab, endurance training, and weight lifting into `resources/`, plus a
+  War Room summary. Same job as `npm run research:daily`. Needs `TAVILY_API_KEY`.
+  On Railway, add a cron (`0 8 * * *` → `npm run research:daily`) so it runs
+  without you tapping. Re-tapping the same day skips unless you use `--force`.
 
 Agent shortcut inbox (optional): set `INBOX_SECRET`, then
 `POST /inbox` with header `x-inbox-secret` and body `{ "text": "..." }`.

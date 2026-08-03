@@ -17,11 +17,20 @@ describe('inbox.capture', () => {
 });
 
 describe('research.status', () => {
-  it('reports whether Tavily is configured', async () => {
+  it('reports whether Tavily is configured and lists daily topics', async () => {
     const caller = appRouter.createCaller(testContext());
     const status = await caller.research.status();
     expect(typeof status.tavilyConfigured).toBe('boolean');
     expect(typeof status.anthropicConfigured).toBe('boolean');
+    expect(status.dailyTopics).toEqual(
+      expect.arrayContaining([
+        'hypertrophy',
+        'strength',
+        'injury rehab',
+        'endurance training',
+        'weight lifting',
+      ]),
+    );
   });
 });
 

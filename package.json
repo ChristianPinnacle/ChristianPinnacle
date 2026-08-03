@@ -15,6 +15,7 @@
     "import:intel": "tsx server/scripts/import-intel.ts",
     "validate:vault": "tsx server/scripts/validate-vault.ts",
     "digest": "tsx server/scripts/digest.ts",
+    "research:daily": "tsx server/scripts/daily-research.ts",
     "pin:hash": "tsx server/scripts/hash-pin.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"

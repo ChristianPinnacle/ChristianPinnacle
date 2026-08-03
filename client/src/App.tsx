@@ -135,6 +135,25 @@ export default function App() {
     },
     onError: (err) => setDigestNote(err.message),
   });
+  const runDailyResearch = trpc.research.runDaily.useMutation({
+    onSuccess: async (result) => {
+      if (result.skipped) {
+        setDigestNote(
+          `Daily research already filed for ${result.date} — tap again with force from CLI if needed.`,
+        );
+      } else {
+        setDigestNote(
+          `Daily research ${result.date}: ${result.filed.length} notes · see ${result.summaryPath}`,
+        );
+      }
+      await Promise.all([
+        utils.vault.list.invalidate(),
+        utils.hud.get.invalidate(),
+        utils.graph.get.invalidate(),
+      ]);
+    },
+    onError: (err) => setDigestNote(err.message),
+  });
   const captureInbox = trpc.inbox.capture.useMutation({
     onSuccess: async () => {
       await Promise.all([
@@ -926,8 +945,20 @@ export default function App() {
           >
             {writeDigest.isPending ? "SCANNING…" : "WEEKLY DIGEST"}
           </button>
+          <button
+            type="button"
+            className="sa-digest-btn"
+            disabled={runDailyResearch.isPending}
+            onClick={() => {
+              setDigestNote(null);
+              runDailyResearch.mutate({ force: false });
+            }}
+          >
+            {runDailyResearch.isPending ? "RESEARCHING…" : "DAILY RESEARCH"}
+          </button>
           <span className="sa-digest-status">
-            {digestNote ?? "Files a War Room summary of this week's vault activity."}
+            {digestNote ??
+              "Digest = vault activity. Daily research = hypertrophy/strength/rehab/endurance/lifting studies (needs Tavily)."}
           </span>
         </div>
       )}
